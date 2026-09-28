@@ -2,11 +2,13 @@ import time
 
 from config import load_config
 from providers.simulator import SimulatedProvider
+from visualization.position_plotter import PositionPlotter
 
 def main() -> None:
     config = load_config()
 
     provider = SimulatedProvider(config.simulator)
+    plotter = PositionPlotter()
 
     loop_frequency_hz = 10.0
     loop_period = 1.0 / loop_frequency_hz
@@ -18,7 +20,9 @@ def main() -> None:
             loop_start = time.monotonic()
 
             raw_measurement = provider.get_measurement()
-            print(raw_measurement) # Added for testing
+
+            print(raw_measurement)
+            plotter.add_measurement(raw_measurement)
 
             elapsed_time = time.monotonic() - loop_start
             sleep_time = max(0.0, loop_period - elapsed_time)
@@ -30,6 +34,7 @@ def main() -> None:
 
     finally:
         provider.disconnect()
+        plotter.show()
 
 if __name__ == "__main__":
     main()
