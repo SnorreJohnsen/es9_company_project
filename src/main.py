@@ -34,7 +34,7 @@ def main() -> None:
 
     finally:
         provider.disconnect()
-        plotter.show()
+        plotter.show_multiview()
 
 if __name__ == "__main__":
     main()
