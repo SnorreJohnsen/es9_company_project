@@ -36,7 +36,7 @@ class SimulatedProvider(PositionProvider):
                 x=x,
                 y=y,
                 z=z,
-                frame="uwb_local",
+                frame="UWB",
                 std_x=self.config.noise_std,
                 std_y=self.config.noise_std,
                 std_z=self.config.noise_std,

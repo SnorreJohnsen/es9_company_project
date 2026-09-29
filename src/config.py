@@ -7,11 +7,7 @@ class TransformConfig:
     origin_y: float = 0.0
     origin_z: float = 0.0
 
-    yaw_offset_deg: float = 0.0
-
-    invert_x: bool = False
-    invert_y: bool = False
-    invert_z: bool = True
+    local_x_heading_deg: float = 0.0
 
 @dataclass
 class SimulatorConfig:

@@ -2,12 +2,16 @@ import time
 
 from config import load_config
 from providers.simulator import SimulatedProvider
+from processing.coordinate_transform import CoordinateTransformer
 from visualization.position_plotter import PositionPlotter
 
 def main() -> None:
     config = load_config()
 
     provider = SimulatedProvider(config.simulator)
+
+    transformer = CoordinateTransformer(config.transform)
+
     plotter = PositionPlotter()
 
     loop_frequency_hz = 10.0
@@ -21,8 +25,9 @@ def main() -> None:
 
             raw_measurement = provider.get_measurement()
 
-            print(raw_measurement)
-            plotter.add_measurement(raw_measurement)
+            transformed_measurement = transformer.transform(raw_measurement)
+            
+            plotter.add_measurement(transformed_measurement)
 
             elapsed_time = time.monotonic() - loop_start
             sleep_time = max(0.0, loop_period - elapsed_time)
