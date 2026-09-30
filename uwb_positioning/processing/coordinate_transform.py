@@ -1,7 +1,7 @@
 import math
 
-from config import TransformConfig
-from models import PositionMeasurement
+from uwb_positioning.config import TransformConfig
+from uwb_positioning.models import PositionMeasurement
 
 
 class CoordinateTransformer:
@@ -11,6 +11,10 @@ class CoordinateTransformer:
     def transform(self, 
                   measurement: PositionMeasurement,
                   ) -> PositionMeasurement:
+        """
+        Transforms a local right handed x-forward, y-left, z-up coordinate system to NED.
+        Assumes std_x == std_y.
+        """
 
         # translate uwb origin to drone origin
         translated_x = measurement.x - self.config.origin_x

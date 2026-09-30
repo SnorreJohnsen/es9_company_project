@@ -2,9 +2,9 @@ import time
 import math
 import random
 
-from config import SimulatorConfig
-from models import PositionMeasurement
-from providers.base import PositionProvider
+from uwb_positioning.config import SimulatorConfig
+from uwb_positioning.models import PositionMeasurement
+from uwb_positioning.providers.base import PositionProvider
 
 class SimulatedProvider(PositionProvider):
     def __init__(self, config: SimulatorConfig):

@@ -1,8 +1,8 @@
 import time
 
-from config import load_config
-from providers.simulator import SimulatedProvider
-from processing.coordinate_transform import CoordinateTransformer
+from uwb_positioning.config import load_config
+from uwb_positioning.providers.simulator import SimulatedProvider
+from uwb_positioning.processing.coordinate_transform import CoordinateTransformer
 from visualization.position_plotter import PositionPlotter
 
 def main() -> None:

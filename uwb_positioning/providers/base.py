@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from models import PositionMeasurement
+from uwb_positioning.models import PositionMeasurement
 
 
 class PositionProvider(ABC):

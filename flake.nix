@@ -26,6 +26,7 @@
                 numpy
                 matplotlib
                 pydantic
+                pytest
               ]
             ))
           ];

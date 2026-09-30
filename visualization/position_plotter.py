@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 
-from models import PositionMeasurement
+from uwb_positioning.models import PositionMeasurement
 
 
 class PositionPlotter:
