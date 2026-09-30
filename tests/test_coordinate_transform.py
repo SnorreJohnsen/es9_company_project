@@ -5,6 +5,14 @@ from uwb_positioning.config import TransformConfig
 from uwb_positioning.models import PositionMeasurement
 from uwb_positioning.processing.coordinate_transform import CoordinateTransformer
 
+@pytest.fixture
+def transformer_zero_heading() -> CoordinateTransformer:
+    config = TransformConfig(origin_x=0.0,
+                             origin_y=0.0,
+                             origin_z=0.0,
+                             local_x_heading_deg=0.0,
+                             )
+    return CoordinateTransformer(config)
 
 @pytest.mark.parametrize("input_coordinates, expected_coordinates",
                          [
@@ -13,16 +21,10 @@ from uwb_positioning.processing.coordinate_transform import CoordinateTransforme
                              ((-4.0, 5.0, -6.0), (-4.0, -5.0, 6.0)),
                          ],
                          )
-def test_transform_coordinates(input_coordinates: tuple[float, float, float],
+def test_transform_coordinates(transformer_zero_heading: CoordinateTransformer,
+                               input_coordinates: tuple[float, float, float],
                                expected_coordinates: tuple[float, float, float],
                                ) -> None:
-    config = TransformConfig(origin_x=0.0,
-                             origin_y=0.0,
-                             origin_z=0.0,
-                             local_x_heading_deg=0.0,
-                             )
-    transformer = CoordinateTransformer(config)
-
     measurement = PositionMeasurement(timestamp_us=1000,
                                       x=input_coordinates[0],
                                       y=input_coordinates[1],
@@ -30,7 +32,7 @@ def test_transform_coordinates(input_coordinates: tuple[float, float, float],
                                       frame="UWB",
                                       )
 
-    result = transformer.transform(measurement)
+    result = transformer_zero_heading.transform(measurement)
 
     assert result.x == pytest.approx(expected_coordinates[0], abs=1e-9)
     assert result.y == pytest.approx(expected_coordinates[1], abs=1e-9)
@@ -79,14 +81,7 @@ def test_transform_applies_heading_rotation() -> None:
     assert result.y == pytest.approx(1.0, abs=1e-9)
     assert result.z == pytest.approx(-3.0, abs=1e-9)
 
-def test_transform_preserves_measurement_metadata() -> None:
-    config = TransformConfig(origin_x=0.0,
-                             origin_y=0.0,
-                             origin_z=0.0,
-                             local_x_heading_deg=0.0,
-                             )
-    transformer = CoordinateTransformer(config)
-
+def test_transform_preserves_measurement_metadata(transformer_zero_heading: CoordinateTransformer) -> None:
     measurement = PositionMeasurement(timestamp_us=123456,
                                       x=1.0,
                                       y=2.0,
@@ -99,7 +94,7 @@ def test_transform_preserves_measurement_metadata() -> None:
                                       rejection_reason="Test rejection",
                                       )
 
-    result = transformer.transform(measurement)
+    result = transformer_zero_heading.transform(measurement)
 
     assert result.timestamp_us == measurement.timestamp_us
     assert result.std_x == measurement.std_x
