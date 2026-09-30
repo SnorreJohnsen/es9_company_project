@@ -3,6 +3,7 @@ import time
 from uwb_positioning.config import load_config
 from uwb_positioning.providers.simulator import SimulatedProvider
 from uwb_positioning.processing.coordinate_transform import CoordinateTransformer
+from uwb_positioning.processing.validation import MeasurementValidator
 from visualization.position_plotter import PositionPlotter
 
 def main() -> None:
@@ -11,6 +12,8 @@ def main() -> None:
     provider = SimulatedProvider(config.simulator)
 
     transformer = CoordinateTransformer(config.transform)
+
+    validator = MeasurementValidator(config.validator)
 
     plotter = PositionPlotter()
 
@@ -26,8 +29,10 @@ def main() -> None:
             raw_measurement = provider.get_measurement()
 
             transformed_measurement = transformer.transform(raw_measurement)
+
+            validated_measurement = validator.validate(transformed_measurement)
             
-            plotter.add_measurement(transformed_measurement)
+            plotter.add_measurement(validated_measurement)
 
             elapsed_time = time.monotonic() - loop_start
             sleep_time = max(0.0, loop_period - elapsed_time)
