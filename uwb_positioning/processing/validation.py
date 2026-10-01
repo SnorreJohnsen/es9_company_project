@@ -24,10 +24,10 @@ class MeasurementValidator:
     def _find_rejection_reason(self,
                                measurement: PositionMeasurement,
                                ) -> str | None:
-        if not self._contains_finite_values:
+        if not self._contains_finite_values(measurement):
             return "Measurement containts NaN or infinite values"
 
-        if not self._is_inside_allowed_area:
+        if not self._is_inside_allowed_area(measurement):
             return "Measurement outside flight area"
 
         if self.previous_measurement is not None:
