@@ -27,6 +27,9 @@ class SimulatedProvider(PositionProvider):
         y = self.config.radius * math.sin(angle)
         z = self.config.altitude
 
+        if self.config.vertical_movement:
+            z += 0.50 * math.sin(0.5 * angle)
+
         x += random.gauss(0.0, self.config.noise_std)
         y += random.gauss(0.0, self.config.noise_std)
         z += random.gauss(0.0, self.config.noise_std)

@@ -3,10 +3,11 @@ from dataclasses import dataclass
 
 @dataclass
 class SimulatorConfig:
-    radius: float = 2.0
+    radius: float = 5.0
     altitude: float = 1.0
     angular_speed: float = 0.3
-    noise_std: float = 0.02
+    noise_std: float = 0.05
+    vertical_movement: bool = False
 
 @dataclass
 class TransformConfig:
