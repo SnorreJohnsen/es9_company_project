@@ -8,6 +8,7 @@ class SimulatorConfig:
     angular_speed: float = 0.3
     noise_std: float = 0.05
     vertical_movement: bool = False
+    duration_s: float | None = None # None: stop simulation with ctrl+C
 
 @dataclass
 class TransformConfig:

@@ -15,6 +15,9 @@ class SimulatedProvider(PositionProvider):
         self.start_time = time.monotonic()
         print("Simulated position provider connected")
 
+        if self.config.duration_s is not None:
+            print(f"Simultion duration: {self.config.duration_s}")
+
     def get_measurement(self) -> PositionMeasurement:
         if self.start_time is None:
             raise RuntimeError("Provider is not connected")

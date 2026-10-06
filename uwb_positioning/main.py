@@ -31,9 +31,14 @@ def main() -> None:
 
         if not mavlink_connection.wait_for_heartbeat():
             return
+
+        simulation_start = time.monotonic() # start timer for whole simulation
         
-        while True:
-            loop_start = time.monotonic()
+        while (config.simulator.duration_s is None
+               or time.monotonic() - simulation_start < config.simulator.duration_s
+               ):
+
+            loop_start = time.monotonic() # start timer for individual loop
 
             raw_measurement = provider.get_measurement()
 
@@ -50,6 +55,7 @@ def main() -> None:
             
             plotter.add_measurement(validated_measurement)
 
+            # sleep time to ensure loop runs at the configured frequency
             elapsed_time = time.monotonic() - loop_start
             sleep_time = max(0.0, loop_period - elapsed_time)
 
@@ -61,7 +67,7 @@ def main() -> None:
     finally:
         provider.disconnect()
         mavlink_connection.close()
-        plotter.show_multiview("visualization/figures/test.png")
+        plotter.show_multiview()
 
 if __name__ == "__main__":
     main()
