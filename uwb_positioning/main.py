@@ -61,7 +61,7 @@ def main() -> None:
     finally:
         provider.disconnect()
         mavlink_connection.close()
-        plotter.show_multiview()
+        plotter.show_multiview("visualization/figures/test.png")
 
 if __name__ == "__main__":
     main()

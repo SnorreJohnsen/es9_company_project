@@ -1,3 +1,4 @@
+import os
 import matplotlib.pyplot as plt
 
 from uwb_positioning.models import PositionMeasurement
@@ -16,24 +17,32 @@ class PositionPlotter:
         self.y_values.append(measurement.y)
         self.z_values.append(measurement.z)
 
-    def show_xy(self) -> None:
+    def show_xy(self,
+                save_path: str | None = None,
+                ) -> None:
         figure, axes = plt.subplots()
 
         self._plot_xy(axes)
 
         figure.tight_layout()
-        plt.show()
 
-    def show_3d(self) -> None:
+        self._save_or_show_fig(figure, save_path)
+
+    def show_3d(self,
+                save_path: str | None = None,
+                ) -> None:
         figure = plt.figure()
         axes = figure.add_subplot(projection="3d")
 
         self._plot_3d(axes)
 
         figure.tight_layout()
-        plt.show()
+
+        self._save_or_show_fig(figure, save_path)
     
-    def show_multiview(self) -> None:
+    def show_multiview(self,
+                       save_path: str | None = None,
+                       ) -> None:
         figure = plt.figure(figsize=(12, 7))
 
         axes_3d = figure.add_subplot(2, 2, 1, projection="3d")
@@ -48,7 +57,22 @@ class PositionPlotter:
 
         figure.suptitle("Simulated position")
         figure.tight_layout()
-        plt.show()
+
+        self._save_or_show_fig(figure, save_path)
+
+    def _save_or_show_fig(self,
+                          figure,
+                          save_path: str | None,
+                          ) -> None:
+        if save_path is None:
+            plt.show()
+            return
+
+        if not os.path.isdir(os.path.dirname(save_path)):
+            raise FileNotFoundError(f"Save directory does not exist: {os.path.dirname(save_path)}")
+
+        figure.savefig(save_path)
+        plt.close(figure)
 
     def _plot_xy(self, axes) -> None:
         axes.plot(self.x_values, 
