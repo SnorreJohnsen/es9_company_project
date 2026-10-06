@@ -27,6 +27,7 @@
                 matplotlib
                 pydantic
                 pytest
+                pymavlink
               ]
             ))
           ];

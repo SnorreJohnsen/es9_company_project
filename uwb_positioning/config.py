@@ -31,14 +31,25 @@ class ValidationConfig:
     maximum_velocity: float = 10.0
 
 @dataclass
+class MavlinkConfig:
+    connection_string: str = "udpout:127.0.0.1:14550"
+    source_system: int = 1
+    source_component: int = 191
+
+    send_rate_hz: float = 10.0
+    enabled: bool = False
+
+@dataclass
 class AppConfig:
     transform: TransformConfig
     validator: ValidationConfig
+    mavlink: MavlinkConfig
     simulator: SimulatorConfig
 
 def load_config() -> AppConfig:
     return AppConfig(
             transform=TransformConfig(),
             validator=ValidationConfig(),
+            mavlink=MavlinkConfig(),
             simulator=SimulatorConfig(),
             )

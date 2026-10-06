@@ -4,6 +4,8 @@ from uwb_positioning.config import load_config
 from uwb_positioning.providers.simulator import SimulatedProvider
 from uwb_positioning.processing.coordinate_transform import CoordinateTransformer
 from uwb_positioning.processing.validation import MeasurementValidator
+from uwb_positioning.outputs.mavlink_connection import MavlinkConnection
+from uwb_positioning.outputs.odometry import OdometryOutput
 from visualization.position_plotter import PositionPlotter
 
 def main() -> None:
@@ -15,13 +17,20 @@ def main() -> None:
 
     validator = MeasurementValidator(config.validator)
 
+    mavlink_connection = MavlinkConnection(config.mavlink)
+
+    odometry_output = OdometryOutput(mavlink_connection)
+
     plotter = PositionPlotter()
 
-    loop_frequency_hz = 10.0
-    loop_period = 1.0 / loop_frequency_hz
+    loop_period = 1.0 / config.mavlink.send_rate_hz
 
     try:
         provider.connect()
+        mavlink_connection.connect()
+
+        if not mavlink_connection.wait_for_heartbeat():
+            return
         
         while True:
             loop_start = time.monotonic()
@@ -31,6 +40,13 @@ def main() -> None:
             transformed_measurement = transformer.transform(raw_measurement)
 
             validated_measurement = validator.validate(transformed_measurement)
+
+            if validated_measurement.valid:
+                odometry_output.send(validated_measurement)
+            else:
+                print("Measurement rejected: ",
+                      f"{validated_measurement.rejection_reason}",
+                      )
             
             plotter.add_measurement(validated_measurement)
 
@@ -44,6 +60,7 @@ def main() -> None:
 
     finally:
         provider.disconnect()
+        mavlink_connection.close()
         plotter.show_multiview()
 
 if __name__ == "__main__":
