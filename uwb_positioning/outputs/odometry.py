@@ -61,7 +61,7 @@ class OdometryOutput:
     @staticmethod
     def _create_position_covariance(measurement: PositionMeasurement,
                                     ) -> list[float]:
-        covariance = [math.nan] * 21
+        covariance = [0.0] * 21 # create as 0.0 and not math.nan since it causes errors
 
         if measurement.std_x is not None:
             covariance[0] = measurement.std_x**2
