@@ -33,12 +33,12 @@ class ValidationConfig:
 
 @dataclass
 class MavlinkConfig:
-    connection_string: str = "udpout:127.0.0.1:14550"
-    source_system: int = 1
+    connection_string: str = "udpin:127.0.0.1:14550"
+    source_system: int = 200
     source_component: int = 191
 
     send_rate_hz: float = 10.0
-    enabled: bool = False
+    enabled: bool = True
 
 @dataclass
 class AppConfig:

@@ -56,7 +56,7 @@ class OdometryOutput:
 
     @staticmethod
     def _unknown_attitude_quaternion() -> list:
-        return [math.nan, math.nan, math.nan, math.nan]
+        return [1, 0, 0, 0] # identity quaternion from ardupilot doc
 
     @staticmethod
     def _create_position_covariance(measurement: PositionMeasurement,
