@@ -1,9 +1,11 @@
-VISO_TYPE 1
+ARMING_MAGTHRESH 0 # disable compass magnetic field check
 
-EK3_SRC1_POSXY 6
-EK3_SRC1_VELXY 0
+VISO_TYPE 1 # 1: MAVLink
 
-EK3_SRC1_POSZ 6
-EK3_SRC1_VELZ 0
+EK3_SRC1_POSXY 6 # 6: External navigation
+EK3_SRC1_VELXY 0 # 6: External navigation, 0: None
 
-EK3_SRC1_YAW 1
+EK3_SRC1_POSZ 6 # 6: External navigation, 1: Baro
+EK3_SRC1_VELZ 0 # 6: External navigation, 0: None
+
+EK3_SRC1_YAW 1 # 6: External navigation, 1: Compass

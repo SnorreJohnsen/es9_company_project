@@ -72,11 +72,6 @@ class OdometryOutput:
         if measurement.std_z is not None:
             covariance[11] = measurement.std_z**2
 
-        # provide large attitude uncertainty because orientation not measured
-        covariance[15] = 5.0
-        covariance[18] = 5.0
-        covariance[20] = 5.0
-
         return covariance
 
     @staticmethod
