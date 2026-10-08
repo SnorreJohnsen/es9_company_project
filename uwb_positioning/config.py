@@ -1,14 +1,22 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
+@dataclass
+class CircleConfig:
+    radius: float = 5.0
+    altitude: float = 1.0
+
+    vertical_movement: bool = False
+
+TrajectoryConfig = CircleConfig # add | another config when new trajectory
 
 @dataclass
 class SimulatorConfig:
-    radius: float = 5.0
-    altitude: float = 1.0
-    angular_speed: float = 0.3
+    speed_mps: float = 1.5
     noise_std: float = 0.05
-    vertical_movement: bool = False
     duration_s: float | None = None # None: stop simulation with ctrl+C
+    random_seed: int | None = 42
+
+    trajectory: TrajectoryConfig = field(default_factory=CircleConfig)
 
 @dataclass
 class TransformConfig:
@@ -38,7 +46,7 @@ class MavlinkConfig:
     source_component: int = 191
 
     send_rate_hz: float = 10.0
-    enabled: bool = True
+    enabled: bool = False
 
 @dataclass
 class AppConfig:
