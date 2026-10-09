@@ -7,7 +7,19 @@ class CircleConfig:
 
     vertical_movement: bool = False
 
-TrajectoryConfig = CircleConfig # add | another config when new trajectory
+@dataclass
+class LineConfig:
+    start_x: float = 5.0 
+    start_y: float = 5.0 
+    start_z: float = 5.0 
+
+    target_x: float = 11.0
+    target_y: float = 11.0
+    target_z: float = 11.0
+
+    repeat: bool = False
+
+TrajectoryConfig = CircleConfig | LineConfig # add | another config when new trajectory
 
 @dataclass
 class SimulatorConfig:
@@ -16,7 +28,9 @@ class SimulatorConfig:
     duration_s: float | None = None # None: stop simulation with ctrl+C
     random_seed: int | None = 42
 
-    trajectory: TrajectoryConfig = field(default_factory=CircleConfig)
+    trajectory: TrajectoryConfig = field(default_factory=
+                                         LineConfig # change here for trajectory
+                                         )
 
 @dataclass
 class TransformConfig:
@@ -28,14 +42,14 @@ class TransformConfig:
 
 @dataclass
 class ValidationConfig:
-    x_min: float = -10.0
-    x_max: float = 10.0
+    x_min: float = -8.0
+    x_max: float = 8.0
 
-    y_min: float = -10.0
-    y_max: float = 10.0
+    y_min: float = -8.0
+    y_max: float = 8.0
 
-    z_min: float = -5.0
-    z_max: float = 5.0
+    z_min: float = -8.0
+    z_max: float = 8.0
 
     maximum_velocity: float = 10.0
 

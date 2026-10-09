@@ -1,10 +1,10 @@
 import time
 import random
 
-from uwb_positioning.config import SimulatorConfig
+from uwb_positioning.config import SimulatorConfig, CircleConfig, LineConfig
 from uwb_positioning.models import PositionMeasurement
 from uwb_positioning.providers.base import PositionProvider
-from uwb_positioning.providers.trajectories import calculate_circle_position
+from uwb_positioning.providers.trajectories import calculate_circle_position, calculate_line_position
 
 class SimulatedProvider(PositionProvider):
     def __init__(self, config: SimulatorConfig):
@@ -15,8 +15,12 @@ class SimulatedProvider(PositionProvider):
 
     def connect(self) -> None:
         self.start_time = time.monotonic()
+
+        trajectory_name = type(self.config.trajectory
+                               ).__name__.removesuffix("Config")
+
         print("Simulated position provider connected")
-        print("Trajectory: circle")
+        print(f"Trajectory: {trajectory_name}")
         print(f"Speed: {self.config.speed_mps} m/s")
 
         if self.config.duration_s is not None:
@@ -28,10 +32,7 @@ class SimulatedProvider(PositionProvider):
 
         elapsed_time = time.monotonic() - self.start_time
 
-        x, y, z = calculate_circle_position(elapsed_time=elapsed_time,
-                                            speed=self.config.speed_mps,
-                                            config=self.config.trajectory,
-                                            )
+        x, y, z = self._calculate_position(elapsed_time)
 
         x, y, z = self._add_noise(x, y, z)
 
@@ -45,6 +46,25 @@ class SimulatedProvider(PositionProvider):
                 std_y=self.config.noise_std,
                 std_z=self.config.noise_std,
                 )
+
+    def _calculate_position(self,
+                            elapsed_time: float,
+                            ) -> tuple[float, float, float]:
+        trajectory = self.config.trajectory
+
+        if isinstance(trajectory, CircleConfig):
+            return calculate_circle_position(elapsed_time=elapsed_time,
+                                             speed=self.config.speed_mps,
+                                             config=trajectory,
+                                             )
+        if isinstance(trajectory, LineConfig):
+            return calculate_line_position(elapsed_time=elapsed_time,
+                                           speed=self.config.speed_mps,
+                                           config=trajectory,
+                                           )
+        raise TypeError("Unsupported trajectory configuration:",
+                        f"{type(trajectory).__name__}",
+                        )
 
     def _add_noise(self,
                    x: float,
