@@ -1,18 +1,17 @@
-import math
 import pytest
 
-from uwb_positioning.config import TransformConfig
+from uwb_positioning.config import LocalTransformConfig
 from uwb_positioning.models import PositionMeasurement
-from uwb_positioning.processing.coordinate_transform import CoordinateTransformer
+from uwb_positioning.processing.coordinate_transform import LocalFluToNedTransformer
 
 @pytest.fixture
-def transformer_zero_heading() -> CoordinateTransformer:
-    config = TransformConfig(origin_x=0.0,
+def transformer_zero_heading() -> LocalFluToNedTransformer:
+    config = LocalTransformConfig(origin_x=0.0,
                              origin_y=0.0,
                              origin_z=0.0,
                              local_x_heading_deg=0.0,
                              )
-    return CoordinateTransformer(config)
+    return LocalFluToNedTransformer(config)
 
 @pytest.mark.parametrize("input_coordinates, expected_coordinates",
                          [
@@ -21,7 +20,7 @@ def transformer_zero_heading() -> CoordinateTransformer:
                              ((-4.0, 5.0, -6.0), (-4.0, -5.0, 6.0)),
                          ],
                          )
-def test_transform_coordinates(transformer_zero_heading: CoordinateTransformer,
+def test_transform_coordinates(transformer_zero_heading: LocalFluToNedTransformer,
                                input_coordinates: tuple[float, float, float],
                                expected_coordinates: tuple[float, float, float],
                                ) -> None:
@@ -40,12 +39,12 @@ def test_transform_coordinates(transformer_zero_heading: CoordinateTransformer,
     assert result.frame == "NED"
 
 def test_transform_applies_origin_translation() -> None:
-    config = TransformConfig(origin_x=10.0,
+    config = LocalTransformConfig(origin_x=10.0,
                              origin_y=20.0,
                              origin_z=5.0,
                              local_x_heading_deg=0.0,
                              )
-    transformer = CoordinateTransformer(config)
+    transformer = LocalFluToNedTransformer(config)
 
     measurement = PositionMeasurement(timestamp_us=1000,
                                       x=11.0,
@@ -61,12 +60,12 @@ def test_transform_applies_origin_translation() -> None:
     assert result.z == pytest.approx(-3.0, abs=1e-9)
 
 def test_transform_applies_heading_rotation() -> None:
-    config = TransformConfig(origin_x=0.0,
+    config = LocalTransformConfig(origin_x=0.0,
                              origin_y=0.0,
                              origin_z=0.0,
                              local_x_heading_deg=90.0,
                              )
-    transformer = CoordinateTransformer(config)
+    transformer = LocalFluToNedTransformer(config)
 
     measurement = PositionMeasurement(timestamp_us=1000,
                                       x=1.0,
@@ -81,7 +80,7 @@ def test_transform_applies_heading_rotation() -> None:
     assert result.y == pytest.approx(1.0, abs=1e-9)
     assert result.z == pytest.approx(-3.0, abs=1e-9)
 
-def test_transform_preserves_measurement_metadata(transformer_zero_heading: CoordinateTransformer) -> None:
+def test_transform_preserves_measurement_metadata(transformer_zero_heading: LocalFluToNedTransformer) -> None:
     measurement = PositionMeasurement(timestamp_us=123456,
                                       x=1.0,
                                       y=2.0,

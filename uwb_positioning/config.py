@@ -33,7 +33,18 @@ class SimulatorConfig:
                                          )
 
 @dataclass
-class TransformConfig:
+class SitlConfig:
+    connection_string: str = "udpin:127.0.0.1:14551"
+
+    message_timeout_s: float = 1.0
+
+    default_horizontal_std_m: float = 0.1
+    default_vertical_std_m: float = 0.1
+
+    duration_s: float | None = None # None: stop simulation with ctrl+C
+
+@dataclass
+class LocalTransformConfig:
     origin_x: float = 0.0
     origin_y: float = 0.0
     origin_z: float = 0.0
@@ -60,19 +71,21 @@ class MavlinkConfig:
     source_component: int = 191
 
     send_rate_hz: float = 10.0
-    enabled: bool = False
+    enabled: bool = True
 
 @dataclass
 class AppConfig:
-    transform: TransformConfig
+    transform: LocalTransformConfig
     validator: ValidationConfig
     mavlink: MavlinkConfig
     simulator: SimulatorConfig
+    sitl_simulator: SitlConfig
 
 def load_config() -> AppConfig:
     return AppConfig(
-            transform=TransformConfig(),
+            transform=LocalTransformConfig(),
             validator=ValidationConfig(),
             mavlink=MavlinkConfig(),
             simulator=SimulatorConfig(),
+            sitl_simulator=SitlConfig(),
             )

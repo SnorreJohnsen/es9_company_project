@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from uwb_positioning.models import PositionMeasurement
+from uwb_positioning.models import PositionMeasurement, GeographicMeasurement
 
 
 class PositionProvider(ABC):
@@ -10,7 +10,7 @@ class PositionProvider(ABC):
         ...
 
     @abstractmethod
-    def get_measurement(self) -> PositionMeasurement:
+    def get_measurement(self) -> PositionMeasurement | GeographicMeasurement:
         """Return the next position measurement"""
         ...
 

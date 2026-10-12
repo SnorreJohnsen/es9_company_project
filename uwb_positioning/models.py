@@ -2,6 +2,17 @@ from dataclasses import dataclass
 
 
 @dataclass
+class GeographicMeasurement:
+    timestamp_us: int
+
+    latitude_deg: float
+    longtitude_deg: float
+    altitude_m: float
+
+    std_horizontal_m: float | None = None
+    std_vertical_m: float | None = None
+
+@dataclass
 class PositionMeasurement:
     timestamp_us: int
 

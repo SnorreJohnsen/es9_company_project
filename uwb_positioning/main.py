@@ -2,7 +2,8 @@ import time
 
 from uwb_positioning.config import load_config
 from uwb_positioning.providers.simulator import SimulatedProvider
-from uwb_positioning.processing.coordinate_transform import CoordinateTransformer
+from uwb_positioning.providers.ardupilot_sitl import ArduPilotSitlProvider
+from uwb_positioning.processing.coordinate_transform import LocalFluToNedTransformer, GeograhicToNedTransformer
 from uwb_positioning.processing.validation import MeasurementValidator
 from uwb_positioning.outputs.mavlink_connection import MavlinkConnection
 from uwb_positioning.outputs.odometry import OdometryOutput
@@ -11,14 +12,15 @@ from visualization.position_plotter import PositionPlotter
 def main() -> None:
     config = load_config()
 
-    provider = SimulatedProvider(config.simulator)
+    #provider = SimulatedProvider(config.simulator)
+    provider = ArduPilotSitlProvider(config.sitl_simulator)
 
-    transformer = CoordinateTransformer(config.transform)
+    #transformer = LocalFluToNedTransformer(config.transform)
+    transformer = GeograhicToNedTransformer()
 
     validator = MeasurementValidator(config.validator)
 
     mavlink_connection = MavlinkConnection(config.mavlink)
-
     odometry_output = OdometryOutput(mavlink_connection)
 
     plotter = PositionPlotter()
