@@ -36,7 +36,7 @@ class SimulatorConfig:
 class SitlConfig:
     connection_string: str = "udpin:127.0.0.1:14551"
 
-    message_timeout_s: float = 1.0
+    message_timeout_s: float = 5.0
 
     default_horizontal_std_m: float = 0.1
     default_vertical_std_m: float = 0.1

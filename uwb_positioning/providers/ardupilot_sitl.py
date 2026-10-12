@@ -35,39 +35,49 @@ class ArduPilotSitlProvider(PositionProvider):
         if connection is None:
             raise RuntimeError("ArduPilot SITL is not connected")
 
-        message = connection.recv_match(type="SIMSTATE",
+        simstate_message = connection.recv_match(type="SIMSTATE",
                                         blocking=True,
                                         timeout=self.config.message_timeout_s,
                                         )
-        if message is None:
+        if simstate_message is None:
             raise TimeoutError('No SIMSTATE message received from ArduPilot SITL')
         
         # drain buffered SIMSTATE messages and use latest one
         while True:
-            newest_message = connection.recv_match(type="SIMSTATE",
+            newest_simstate_message = connection.recv_match(type="SIMSTATE",
                                                    blocking=False,
                                                    )
 
-            if newest_message is None:
+            if newest_simstate_message is None:
                 break
 
-            message = newest_message
+            simstate_message = newest_simstate_message
 
-        # prefer integer coordinates for higher precision, fallback to float
-        latitude_int = int(getattr(message, "lat_int", 0) or 0)
-        longtitude_int = int(getattr(message, "lon_int", 0) or 0)
+        # uses ardupilotmega dialect for simulation
+        latitude_deg = float(simstate_message.lat) / 1e7
+        longtitude_deg = float(simstate_message.lng) / 1e7
 
-        if latitude_int != 0:
-            latitude_deg = latitude_int / 1e7
-        else:
-            latitude_deg = float(message.lat)
+        # the dialect does not support altitude 
+        # therefore the altitude is obtained through raw simulated gps
+        gps_raw_message = connection.recv_match(type="GPS_RAW_INT",
+                                                 blocking=True,
+                                                 timeout=self.config.message_timeout_s,
+                                                 )
+        if gps_raw_message is None:
+            raise TimeoutError("No GPS_RAW_INT message received from ArduPilot SITL")
 
-        if longtitude_int != 0:
-            longtitude_deg = longtitude_int / 1e7
-        else:
-            longtitude_deg = float(message.lon)
+        # drain buffered GPS_RAW_INT messages and use latest one
+        while True:
+            newest_gps_raw_message = connection.recv_match(type="GPS_RAW_INT",
+                                                   blocking=False,
+                                                   )
 
-        altitude_m = float(message.alt)
+            if newest_gps_raw_message is None:
+                break
+
+            gps_raw_message = newest_gps_raw_message
+        
+        altitude_m = float(gps_raw_message.alt) / 1000.0 # alt is in millimeters
 
         values = (latitude_deg,
                   longtitude_deg,
@@ -75,27 +85,17 @@ class ArduPilotSitlProvider(PositionProvider):
                   )
 
         if not all(math.isfinite(value) for value in values):
-            raise ValueError("SIMSTATE contains invalid position coordinates")
+            raise ValueError("SITL contains invalid position coordinates")
 
-        if not -90.0 <= latitude_int <= 90.0:
+        if not -90.0 <= latitude_deg <= 90.0:
             raise ValueError(f"Invalid latitude: {latitude_deg}")
 
-        if not -180.0 <= longtitude_int <= 180.0:
+        if not -180.0 <= longtitude_deg <= 180.0:
             raise ValueError(f"Invalid longtitude: {longtitude_deg}")
 
-        # read uncertainty fields if provided, fallback default from config
-        horizontal_std_m = float(getattr(message, "std_dev_horz", 0.0) or 0.0)
-        vertical_std_m = float(getattr(message, "std_dev_vert", 0.0) or 0.0)
-
-        if (not math.isfinite(horizontal_std_m)
-            or horizontal_std_m <= 0.0
-            ):
-            horizontal_std_m = (self.config.default_horizontal_std_m)
-
-        if (not math.isfinite(vertical_std_m)
-            or vertical_std_m <= 0.0
-            ):
-            vertical_std_m = (self.config.default_vertical_std_m)
+        # dialect does not support uncertainty fields
+        horizontal_std_m = (self.config.default_horizontal_std_m)
+        vertical_std_m = (self.config.default_vertical_std_m)
 
         return GeographicMeasurement(timestamp_us=time.monotonic_ns() // 1000,
                                      latitude_deg=latitude_deg,
