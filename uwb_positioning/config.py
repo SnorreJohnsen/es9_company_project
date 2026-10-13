@@ -38,8 +38,8 @@ class SitlConfig:
 
     message_timeout_s: float = 5.0
 
-    default_horizontal_std_m: float = 0.1
-    default_vertical_std_m: float = 0.1
+    horizontal_noise_std: float = 0.1
+    vertical_noise_std: float = 0.1
 
     duration_s: float | None = None # None: stop simulation with ctrl+C
 

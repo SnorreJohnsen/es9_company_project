@@ -35,28 +35,6 @@ class ArduPilotSitlProvider(PositionProvider):
         if connection is None:
             raise RuntimeError("ArduPilot SITL is not connected")
 
-        simstate_message = connection.recv_match(type="SIMSTATE",
-                                        blocking=True,
-                                        timeout=self.config.message_timeout_s,
-                                        )
-        if simstate_message is None:
-            raise TimeoutError('No SIMSTATE message received from ArduPilot SITL')
-        
-        # drain buffered SIMSTATE messages and use latest one
-        while True:
-            newest_simstate_message = connection.recv_match(type="SIMSTATE",
-                                                   blocking=False,
-                                                   )
-
-            if newest_simstate_message is None:
-                break
-
-            simstate_message = newest_simstate_message
-
-        # uses ardupilotmega dialect for simulation
-        latitude_deg = float(simstate_message.lat) / 1e7
-        longtitude_deg = float(simstate_message.lng) / 1e7
-
         # the dialect does not support altitude 
         # therefore the altitude is obtained through raw simulated gps
         gps_raw_message = connection.recv_match(type="GPS_RAW_INT",
@@ -77,6 +55,8 @@ class ArduPilotSitlProvider(PositionProvider):
 
             gps_raw_message = newest_gps_raw_message
         
+        latitude_deg = float(gps_raw_message.lat) / 1e7
+        longtitude_deg = float(gps_raw_message.lng) / 1e7
         altitude_m = float(gps_raw_message.alt) / 1000.0 # alt is in millimeters
 
         values = (latitude_deg,
@@ -93,9 +73,8 @@ class ArduPilotSitlProvider(PositionProvider):
         if not -180.0 <= longtitude_deg <= 180.0:
             raise ValueError(f"Invalid longtitude: {longtitude_deg}")
 
-        # dialect does not support uncertainty fields
-        horizontal_std_m = (self.config.default_horizontal_std_m)
-        vertical_std_m = (self.config.default_vertical_std_m)
+        horizontal_std_m = float(gps_raw_message.v_acc) / 1000.0 # GPS_RAW_INT uncertainties are in millimeters
+        vertical_std_m = float(gps_raw_message.h_acc) / 1000.0
 
         return GeographicMeasurement(timestamp_us=time.monotonic_ns() // 1000,
                                      latitude_deg=latitude_deg,
