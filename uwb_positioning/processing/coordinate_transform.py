@@ -42,7 +42,7 @@ class LocalFluToNedTransformer:
                                    rejection_reason=measurement.rejection_reason,
                                    )
 
-class GeograhicToNedTransformer:
+class GeographicToNedTransformer:
     def __init__(self):
         # initial fixed origin
         self._origin: tuple[float, float, float] | None = None # [latitude, longtitude, altitude]

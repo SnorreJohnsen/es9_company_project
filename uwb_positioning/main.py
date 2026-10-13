@@ -4,7 +4,7 @@ from uwb_positioning.config import load_config
 from uwb_positioning.providers.simulator import SimulatedProvider
 from uwb_positioning.providers.ardupilot_sitl import ArduPilotSitlProvider
 from uwb_positioning.providers.sitl_simulation import SitlPositionNoise
-from uwb_positioning.processing.coordinate_transform import LocalFluToNedTransformer, GeograhicToNedTransformer
+from uwb_positioning.processing.coordinate_transform import LocalFluToNedTransformer, GeographicToNedTransformer
 from uwb_positioning.processing.validation import MeasurementValidator
 from uwb_positioning.outputs.mavlink_connection import MavlinkConnection
 from uwb_positioning.outputs.odometry import OdometryOutput
@@ -18,7 +18,7 @@ def main() -> None:
     sitl_noise = SitlPositionNoise(config.sitl_simulator)
 
     #transformer = LocalFluToNedTransformer(config.transform)
-    transformer = GeograhicToNedTransformer()
+    transformer = GeographicToNedTransformer()
 
     validator = MeasurementValidator(config.validator)
 
