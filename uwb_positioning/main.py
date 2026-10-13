@@ -3,6 +3,7 @@ import time
 from uwb_positioning.config import load_config
 from uwb_positioning.providers.simulator import SimulatedProvider
 from uwb_positioning.providers.ardupilot_sitl import ArduPilotSitlProvider
+from uwb_positioning.providers.sitl_simulation import SitlPositionNoise
 from uwb_positioning.processing.coordinate_transform import LocalFluToNedTransformer, GeograhicToNedTransformer
 from uwb_positioning.processing.validation import MeasurementValidator
 from uwb_positioning.outputs.mavlink_connection import MavlinkConnection
@@ -13,7 +14,8 @@ def main() -> None:
     config = load_config()
 
     #provider = SimulatedProvider(config.simulator)
-    provider = ArduPilotSitlProvider(config.sitl_simulator)
+    provider = ArduPilotSitlProvider(config.sitl_provider)
+    sitl_noise = SitlPositionNoise(config.sitl_simulator)
 
     #transformer = LocalFluToNedTransformer(config.transform)
     transformer = GeograhicToNedTransformer()
@@ -46,7 +48,9 @@ def main() -> None:
 
             transformed_measurement = transformer.transform(raw_measurement)
 
-            validated_measurement = validator.validate(transformed_measurement)
+            noisy_measurement = sitl_noise.add_gaussian_noise(transformed_measurement)
+
+            validated_measurement = validator.validate(noisy_measurement)
 
             if validated_measurement.valid:
                 odometry_output.send(validated_measurement)

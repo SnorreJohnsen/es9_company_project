@@ -33,15 +33,17 @@ class SimulatorConfig:
                                          )
 
 @dataclass
-class SitlConfig:
+class SitlProviderConfig:
     connection_string: str = "udpin:127.0.0.1:14551"
-
     message_timeout_s: float = 5.0
 
-    horizontal_noise_std: float = 0.1
-    vertical_noise_std: float = 0.1
-
+@dataclass
+class SitlSimulationConfig:
     duration_s: float | None = None # None: stop simulation with ctrl+C
+
+    horizontal_noise_std_m: float = 0.05
+    vertical_noise_std_m: float = 0.05
+    random_seed: int | None = 42
 
 @dataclass
 class LocalTransformConfig:
@@ -79,7 +81,8 @@ class AppConfig:
     validator: ValidationConfig
     mavlink: MavlinkConfig
     simulator: SimulatorConfig
-    sitl_simulator: SitlConfig
+    sitl_provider: SitlProviderConfig
+    sitl_simulator: SitlSimulationConfig
 
 def load_config() -> AppConfig:
     return AppConfig(
@@ -87,5 +90,6 @@ def load_config() -> AppConfig:
             validator=ValidationConfig(),
             mavlink=MavlinkConfig(),
             simulator=SimulatorConfig(),
-            sitl_simulator=SitlConfig(),
+            sitl_provider=SitlProviderConfig(),
+            sitl_simulator=SitlSimulationConfig(),
             )

@@ -5,13 +5,13 @@ from typing import cast
 
 from pymavlink import mavutil
 
-from uwb_positioning.config import SitlConfig
+from uwb_positioning.config import SitlProviderConfig
 from uwb_positioning.models import GeographicMeasurement
 from uwb_positioning.providers.base import PositionProvider
 
 
 class ArduPilotSitlProvider(PositionProvider):
-    def __init__(self, config: SitlConfig):
+    def __init__(self, config: SitlProviderConfig):
         self.config = config
         self.connection: mavutil.mavfile | None = None
 
@@ -83,6 +83,7 @@ class ArduPilotSitlProvider(PositionProvider):
                                      std_horizontal_m=horizontal_std_m,
                                      std_vertical_m=vertical_std_m,
                                      )
+
     def disconnect(self) -> None:
         connection = self.connection
 
