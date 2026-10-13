@@ -56,7 +56,7 @@ class ArduPilotSitlProvider(PositionProvider):
             gps_raw_message = newest_gps_raw_message
         
         latitude_deg = float(gps_raw_message.lat) / 1e7
-        longtitude_deg = float(gps_raw_message.lng) / 1e7
+        longtitude_deg = float(gps_raw_message.lon) / 1e7
         altitude_m = float(gps_raw_message.alt) / 1000.0 # alt is in millimeters
 
         values = (latitude_deg,
