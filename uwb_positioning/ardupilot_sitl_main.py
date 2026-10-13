@@ -1,4 +1,5 @@
 import time
+import argparse
 
 from uwb_positioning.config import load_ardupilot_sitl_config
 
@@ -13,7 +14,18 @@ from uwb_positioning.outputs.odometry import OdometryOutput
 
 from visualization.position_plotter import PositionPlotter
 
+def parse_arguments() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(prog="ArdyPilot SITL external position",
+                                     description="Run ArduPilot SITL positioning to provide external positioning with the mavlink odometry message",
+                                     )
+    parser.add_argument("--plot-position", action="store_true",
+                        help="Plot measured position when program stops",
+                        )
+    return parser.parse_args()
+
 def main() -> None:
+    args = parse_arguments()
+
     config = load_ardupilot_sitl_config()
 
     provider = ArduPilotSitlProvider(config.provider)
@@ -26,7 +38,7 @@ def main() -> None:
     mavlink_connection = MavlinkConnection(config.mavlink)
     odometry_output = OdometryOutput(mavlink_connection)
 
-    plotter = PositionPlotter()
+    plotter = PositionPlotter() if args.plot_position else None
 
     loop_period = 1.0 / config.mavlink.send_rate_hz
 
@@ -60,7 +72,8 @@ def main() -> None:
                       f"{validated_measurement.rejection_reason}",
                       )
             
-            plotter.add_measurement(validated_measurement)
+            if plotter is not None:
+                plotter.add_measurement(validated_measurement)
 
             # sleep time to ensure loop runs at the configured frequency
             elapsed_time = time.monotonic() - loop_start
@@ -74,7 +87,9 @@ def main() -> None:
     finally:
         provider.disconnect()
         mavlink_connection.close()
-        plotter.show_multiview()
+
+        if plotter is not None:
+            plotter.show_multiview()
 
 if __name__ == "__main__":
     main()

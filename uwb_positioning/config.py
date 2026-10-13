@@ -73,7 +73,7 @@ class ValidationConfig:
 class MavlinkConfig:
     connection_string: str = "udpin:127.0.0.1:14550"
     source_system: int = 200
-    source_component: int = 191
+    source_component: int = 191 # MAV_COMP_ID_ONBOARD_COMPUTER
 
     send_rate_hz: float = 10.0
     enabled: bool = True
