@@ -33,9 +33,9 @@
           ];
 
           shellHook = ''
-            			    echo "Entered the es9_company_project development shell"
-            				python --version
-            			  '';
+                        echo "Entered the es9_company_project development shell"
+            			python --version
+            		  '';
         };
       }
     );
