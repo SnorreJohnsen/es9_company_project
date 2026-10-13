@@ -1,5 +1,7 @@
 from dataclasses import dataclass, field
 
+
+# Simulator
 @dataclass
 class CircleConfig:
     radius: float = 5.0
@@ -31,7 +33,7 @@ class SimulatorConfig:
     trajectory: TrajectoryConfig = field(default_factory=
                                          LineConfig # change here for trajectory
                                          )
-
+# Ardupilot SITL
 @dataclass
 class SitlProviderConfig:
     connection_string: str = "udpin:127.0.0.1:14551"
@@ -45,6 +47,7 @@ class SitlSimulationConfig:
     vertical_noise_std_m: float = 0.05
     random_seed: int | None = 42
 
+# shared
 @dataclass
 class LocalTransformConfig:
     origin_x: float = 0.0
@@ -76,20 +79,29 @@ class MavlinkConfig:
     enabled: bool = True
 
 @dataclass
-class AppConfig:
+class ArdupilotSitlAppConfig:
+    provider: SitlProviderConfig
+    simulation: SitlSimulationConfig
+    validator: ValidationConfig
+    mavlink: MavlinkConfig
+
+@dataclass
+class SimulatorAppConfig:
+    provider: SimulatorConfig
     transform: LocalTransformConfig
     validator: ValidationConfig
     mavlink: MavlinkConfig
-    simulator: SimulatorConfig
-    sitl_provider: SitlProviderConfig
-    sitl_simulator: SitlSimulationConfig
 
-def load_config() -> AppConfig:
-    return AppConfig(
-            transform=LocalTransformConfig(),
-            validator=ValidationConfig(),
-            mavlink=MavlinkConfig(),
-            simulator=SimulatorConfig(),
-            sitl_provider=SitlProviderConfig(),
-            sitl_simulator=SitlSimulationConfig(),
-            )
+def load_ardupilot_sitl_config() -> ArdupilotSitlAppConfig:
+    return ArdupilotSitlAppConfig(provider=SitlProviderConfig(),
+                                  simulation=SitlSimulationConfig(),
+                                  validator=ValidationConfig(), 
+                                  mavlink=MavlinkConfig(), 
+                                  )
+
+def load_simulator_config() -> SimulatorAppConfig:
+    return SimulatorAppConfig(provider=SimulatorConfig(), 
+                              transform=LocalTransformConfig(), 
+                              validator=ValidationConfig(), 
+                              mavlink=MavlinkConfig(),
+                              )

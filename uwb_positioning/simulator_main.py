@@ -1,24 +1,19 @@
 import time
 
-from uwb_positioning.config import load_config
-from uwb_positioning.providers.simulator import SimulatedProvider
-from uwb_positioning.providers.ardupilot_sitl import ArduPilotSitlProvider
-from uwb_positioning.providers.sitl_simulation import SitlPositionNoise
-from uwb_positioning.processing.coordinate_transform import LocalFluToNedTransformer, GeographicToNedTransformer
+from uwb_positioning.config import load_simulator_config
+from uwb_positioning.providers.simulator.provider import SimulatedProvider
+from uwb_positioning.processing.coordinate_transform import LocalFluToNedTransformer
 from uwb_positioning.processing.validation import MeasurementValidator
 from uwb_positioning.outputs.mavlink_connection import MavlinkConnection
 from uwb_positioning.outputs.odometry import OdometryOutput
 from visualization.position_plotter import PositionPlotter
 
 def main() -> None:
-    config = load_config()
+    config = load_simulator_config()
 
-    #provider = SimulatedProvider(config.simulator)
-    provider = ArduPilotSitlProvider(config.sitl_provider)
-    sitl_noise = SitlPositionNoise(config.sitl_simulator)
+    provider = SimulatedProvider(config.provider)
 
-    #transformer = LocalFluToNedTransformer(config.transform)
-    transformer = GeographicToNedTransformer()
+    transformer = LocalFluToNedTransformer(config.transform)
 
     validator = MeasurementValidator(config.validator)
 
@@ -38,8 +33,8 @@ def main() -> None:
 
         simulation_start = time.monotonic() # start timer for whole simulation
         
-        while (config.simulator.duration_s is None
-               or time.monotonic() - simulation_start < config.simulator.duration_s
+        while (config.provider.duration_s is None
+               or time.monotonic() - simulation_start < config.provider.duration_s
                ):
 
             loop_start = time.monotonic() # start timer for individual loop
@@ -48,9 +43,7 @@ def main() -> None:
 
             transformed_measurement = transformer.transform(raw_measurement)
 
-            noisy_measurement = sitl_noise.add_gaussian_noise(transformed_measurement)
-
-            validated_measurement = validator.validate(noisy_measurement)
+            validated_measurement = validator.validate(transformed_measurement)
 
             if validated_measurement.valid:
                 odometry_output.send(validated_measurement)

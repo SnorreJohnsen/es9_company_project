@@ -4,7 +4,7 @@ from uwb_positioning.models import PositionMeasurement
 from uwb_positioning.config import SitlSimulationConfig
 
 
-class SitlPositionNoise:
+class PositionNoise:
     def __init__(self, config: SitlSimulationConfig):
         self.config = config
         self.random_generator = random.Random(config.random_seed)

@@ -4,7 +4,7 @@ import random
 from uwb_positioning.config import SimulatorConfig, CircleConfig, LineConfig
 from uwb_positioning.models import PositionMeasurement
 from uwb_positioning.providers.base import PositionProvider
-from uwb_positioning.providers.trajectories import calculate_circle_position, calculate_line_position
+from uwb_positioning.providers.simulator.trajectories import calculate_circle_position, calculate_line_position
 
 class SimulatedProvider(PositionProvider):
     def __init__(self, config: SimulatorConfig):
