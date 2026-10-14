@@ -25,8 +25,7 @@ Edit `uwb_positioning/config.py` to change the application configuration.
 
 ### ArduPilot SITL
 
-[!NOTE] 
-This has only been used with WSL2 running Ubuntu 24.04.
+**_NOTE:_** This has only been used with WSL2 running Ubuntu 24.04.
 
 Start ArduPilot SITL in a terminal:
 
