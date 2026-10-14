@@ -37,7 +37,7 @@ class MeasurementDegradation:
                                    frame=measurement.frame,
                                    std_x=self.config.horizontal_noise_std_m,
                                    std_y=self.config.horizontal_noise_std_m,
-                                   std_z=self.config.horizontal_noise_std_m,
+                                   std_z=self.config.vertical_noise_std_m,
                                    )
 
     def add_fixed_delay(self,
