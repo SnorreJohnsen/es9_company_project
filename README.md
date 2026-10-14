@@ -65,13 +65,13 @@ In the MAVProxy console set the vehicle to GUIDED mode, arm it and take off.
 ```text
 mode guided
 arm throttle
-takeoff [int]
+takeoff <int>
 ```
 
 Speed [m/s] can be changed with:
 
 ```text
-param set WP_SPD [int | float]
+param set WP_SPD <int | float>
 ```
 
 Move to destination by right-click the map and choose `fly to`
