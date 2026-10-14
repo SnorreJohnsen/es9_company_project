@@ -47,6 +47,8 @@ class SitlSimulationConfig:
     vertical_noise_std_m: float = 0.05
     random_seed: int | None = 42
 
+    delay_s: float = 0.1
+
 # shared
 @dataclass
 class LocalTransformConfig:

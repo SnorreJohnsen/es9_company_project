@@ -4,7 +4,7 @@ import argparse
 from uwb_positioning.config import load_ardupilot_sitl_config
 
 from uwb_positioning.providers.ardupilot_sitl.provider import ArduPilotSitlProvider
-from uwb_positioning.providers.ardupilot_sitl.uwb_measurement_degradation import PositionNoise
+from uwb_positioning.providers.ardupilot_sitl.uwb_measurement_degradation import MeasurementDegradation
 
 from uwb_positioning.processing.coordinate_transform import GeographicToNedTransformer
 from uwb_positioning.processing.validation import MeasurementValidator
@@ -29,7 +29,7 @@ def main() -> None:
     config = load_ardupilot_sitl_config()
 
     provider = ArduPilotSitlProvider(config.provider)
-    noise = PositionNoise(config.simulation)
+    measurement_degradation = MeasurementDegradation(config.simulation)
 
     transformer = GeographicToNedTransformer()
 
@@ -61,19 +61,23 @@ def main() -> None:
 
             transformed_measurement = transformer.transform(raw_measurement)
 
-            noisy_measurement = noise.add_gaussian_noise(transformed_measurement)
+            noisy_measurement = measurement_degradation.add_gaussian_noise(transformed_measurement)
 
-            validated_measurement = validator.validate(noisy_measurement)
+            delayed_measurement = measurement_degradation.add_fixed_delay(noisy_measurement)
 
-            if validated_measurement.valid:
-                odometry_output.send(validated_measurement)
-            else:
-                print("Measurement rejected: ",
-                      f"{validated_measurement.rejection_reason}",
-                      )
-            
-            if plotter is not None:
-                plotter.add_measurement(validated_measurement)
+            if delayed_measurement is not None:
+
+                validated_measurement = validator.validate(delayed_measurement)
+
+                if validated_measurement.valid:
+                    odometry_output.send(validated_measurement)
+                else:
+                    print("Measurement rejected: ",
+                          f"{validated_measurement.rejection_reason}",
+                          )
+                
+                if plotter is not None:
+                    plotter.add_measurement(validated_measurement)
 
             # sleep time to ensure loop runs at the configured frequency
             elapsed_time = time.monotonic() - loop_start

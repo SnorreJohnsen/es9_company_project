@@ -1,13 +1,24 @@
 import random
+import time
+
+from collections import deque
+from dataclasses import dataclass
 
 from uwb_positioning.models import PositionMeasurement
 from uwb_positioning.config import SitlSimulationConfig
 
 
-class PositionNoise:
+@dataclass
+class BufferedMeasurement:
+    release_time_us: int
+    measurement: PositionMeasurement
+
+
+class MeasurementDegradation:
     def __init__(self, config: SitlSimulationConfig):
         self.config = config
         self.random_generator = random.Random(config.random_seed)
+        self.delay_buffer: deque[BufferedMeasurement] = deque()
 
     def add_gaussian_noise(self,
                            measurement: PositionMeasurement,
@@ -28,3 +39,22 @@ class PositionNoise:
                                    std_y=self.config.horizontal_noise_std_m,
                                    std_z=self.config.horizontal_noise_std_m,
                                    )
+
+    def add_fixed_delay(self,
+                        measurement: PositionMeasurement,
+                        ) -> PositionMeasurement | None:
+        current_time_us = time.monotonic_ns() // 1000
+        delay_us = int(self.config.delay_s * 1_000_000)
+
+        self.delay_buffer.append(
+                BufferedMeasurement(release_time_us=current_time_us + delay_us, 
+                                    measurement=measurement,
+                                    )
+                )
+
+        oldest_buffered_measurement = self.delay_buffer[0]
+
+        if current_time_us < oldest_buffered_measurement.release_time_us:
+            return None
+
+        return self.delay_buffer.popleft().measurement
