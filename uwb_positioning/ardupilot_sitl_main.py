@@ -60,8 +60,6 @@ def main() -> None:
                or time.monotonic() - simulation_start < config.simulation.duration_s
                ):
 
-            current_time = time.monotonic() # start timer for individual loop
-
             raw_measurement = provider.get_measurement()
 
             if raw_measurement is not None:
@@ -70,6 +68,8 @@ def main() -> None:
                 noisy_measurement = measurement_degradation.add_gaussian_noise(transformed_measurement)
 
                 measurement_degradation.buffer_measurement(noisy_measurement)
+
+            current_time = time.monotonic()
 
             # send one message per configured send period
             if current_time >= next_send_time:
@@ -93,6 +93,10 @@ def main() -> None:
                         plotter.add_measurement(validated_measurement)
 
                 next_send_time += send_period_s
+
+                # catch up loop if send slots get missed
+                while next_send_time <= send_period_s:
+                    next_send_time += send_period_s
 
             time.sleep(0.001) # fast polling without overloading CPU
 
