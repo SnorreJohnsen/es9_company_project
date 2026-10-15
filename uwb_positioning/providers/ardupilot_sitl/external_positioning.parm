@@ -1,6 +1,6 @@
 ARMING_MAGTHRESH 0 # disable compass magnetic field check
 
-VISO_TYPE 3 # 1: MAVLink, 3: VOXL(ModalAI)
+VISO_TYPE 1 # 1: MAVLink, 3: VOXL(ModalAI), has to be MAVLink when running SITL otherwise errno 111
 
 EK3_SRC1_POSXY 6 # 6: External navigation
 EK3_SRC1_VELXY 0 # 6: External navigation, 0: None
