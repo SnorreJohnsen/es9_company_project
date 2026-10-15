@@ -10,6 +10,7 @@ from uwb_positioning.config import SitlSimulationConfig
 
 @dataclass
 class BufferedMeasurement:
+    buffered_time_us: int
     release_time_us: int
     measurement: PositionMeasurement
 
@@ -40,18 +41,24 @@ class MeasurementDegradation:
                                    std_z=self.config.vertical_noise_std_m,
                                    )
 
-    def add_fixed_delay(self,
-                        measurement: PositionMeasurement,
-                        ) -> PositionMeasurement | None:
+    def buffer_measurement(self,
+                           measurement: PositionMeasurement,
+                           ) -> None:
         current_time_us = time.monotonic_ns() // 1000
         delay_us = int(self.config.delay_s * 1_000_000)
 
         self.delay_buffer.append(
-                BufferedMeasurement(release_time_us=current_time_us + delay_us, 
+                BufferedMeasurement(buffered_time_us=current_time_us,
+                                    release_time_us=current_time_us + delay_us, 
                                     measurement=measurement,
                                     )
                 )
 
+    def get_buffer_measurement(self) -> PositionMeasurement | None:
+        if not self.delay_buffer:
+            return None
+
+        current_time_us = time.monotonic_ns() // 1000
         oldest_buffered_measurement = self.delay_buffer[0]
 
         if current_time_us < oldest_buffered_measurement.release_time_us:

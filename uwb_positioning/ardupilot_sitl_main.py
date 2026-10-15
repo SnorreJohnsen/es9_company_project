@@ -17,7 +17,7 @@ from analysis.statistics import get_measurement_age_ms, DelayStatistics
 from visualization.position_plotter import PositionPlotter
 
 def parse_arguments() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(prog="ArdyPilot SITL external position",
+    parser = argparse.ArgumentParser(prog="ArduPilot SITL external position",
                                      description="Run ArduPilot SITL positioning to provide external positioning with the mavlink odometry message",
                                      )
     parser.add_argument("--plot-position", action="store_true",
@@ -44,7 +44,7 @@ def main() -> None:
 
     plotter = PositionPlotter() if args.plot_position else None
 
-    loop_period = 1.0 / config.mavlink.send_rate_hz
+    send_period_s = 1.0 / config.mavlink.send_rate_hz
 
     try:
         provider.connect()
@@ -54,43 +54,47 @@ def main() -> None:
             return
 
         simulation_start = time.monotonic() # start timer for whole simulation
+        next_send_time = time.monotonic()
         
         while (config.simulation.duration_s is None
                or time.monotonic() - simulation_start < config.simulation.duration_s
                ):
 
-            loop_start = time.monotonic() # start timer for individual loop
+            current_time = time.monotonic() # start timer for individual loop
 
             raw_measurement = provider.get_measurement()
 
-            transformed_measurement = transformer.transform(raw_measurement)
+            if raw_measurement is not None:
+                transformed_measurement = transformer.transform(raw_measurement)
 
-            noisy_measurement = measurement_degradation.add_gaussian_noise(transformed_measurement)
+                noisy_measurement = measurement_degradation.add_gaussian_noise(transformed_measurement)
 
-            delayed_measurement = measurement_degradation.add_fixed_delay(noisy_measurement)
+                measurement_degradation.buffer_measurement(noisy_measurement)
 
-            if delayed_measurement is not None:
+            # send one message per configured send period
+            if current_time >= next_send_time:
+                delayed_measurement = measurement_degradation.get_buffer_measurement()
 
-                validated_measurement = validator.validate(delayed_measurement)
+                if delayed_measurement is not None:
 
-                if validated_measurement.valid:
-                    measurement_age_ms = get_measurement_age_ms(validated_measurement)
-                    delay_statistics.add_sample(measurement_age_ms)
+                    validated_measurement = validator.validate(delayed_measurement)
 
-                    odometry_output.send(validated_measurement)
-                else:
-                    print("Measurement rejected: ",
-                          f"{validated_measurement.rejection_reason}",
-                          )
-                
-                if plotter is not None:
-                    plotter.add_measurement(validated_measurement)
+                    if validated_measurement.valid:
+                        measurement_age_ms = get_measurement_age_ms(validated_measurement)
+                        delay_statistics.add_sample(measurement_age_ms)
 
-            # sleep time to ensure loop runs at the configured frequency
-            elapsed_time = time.monotonic() - loop_start
-            sleep_time = max(0.0, loop_period - elapsed_time)
+                        odometry_output.send(validated_measurement)
+                    else:
+                        print("Measurement rejected: ",
+                              f"{validated_measurement.rejection_reason}",
+                              )
+                    
+                    if plotter is not None:
+                        plotter.add_measurement(validated_measurement)
 
-            time.sleep(sleep_time)
+                next_send_time += send_period_s
+
+            time.sleep(0.001) # fast polling without overloading CPU
 
     except KeyboardInterrupt:
         print("\nStopping program...")

@@ -35,11 +35,8 @@ class ArduPilotSitlProvider(PositionProvider):
         if connection is None:
             raise RuntimeError("ArduPilot SITL is not connected")
 
-        # the dialect does not support altitude 
-        # therefore the altitude is obtained through raw simulated gps
         gps_raw_message = connection.recv_match(type="GPS_RAW_INT",
-                                                 blocking=True,
-                                                 timeout=self.config.message_timeout_s,
+                                                 blocking=False,
                                                  )
         if gps_raw_message is None:
             raise TimeoutError("No GPS_RAW_INT message received from ArduPilot SITL")
