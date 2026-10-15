@@ -10,7 +10,7 @@ class PositionProvider(ABC):
         ...
 
     @abstractmethod
-    def get_measurement(self) -> PositionMeasurement | GeographicMeasurement:
+    def get_measurement(self) -> PositionMeasurement | GeographicMeasurement | None:
         """Return the next position measurement"""
         ...
 

@@ -29,7 +29,7 @@ class ArduPilotSitlProvider(PositionProvider):
 
         print("ArduPilot SITL connected")
 
-    def get_measurement(self) -> GeographicMeasurement:
+    def get_measurement(self) -> GeographicMeasurement | None:
         connection = self.connection
 
         if connection is None:
@@ -39,7 +39,7 @@ class ArduPilotSitlProvider(PositionProvider):
                                                  blocking=False,
                                                  )
         if gps_raw_message is None:
-            raise TimeoutError("No GPS_RAW_INT message received from ArduPilot SITL")
+            return None
 
         # drain buffered GPS_RAW_INT messages and use latest one
         while True:
@@ -70,8 +70,8 @@ class ArduPilotSitlProvider(PositionProvider):
         if not -180.0 <= longtitude_deg <= 180.0:
             raise ValueError(f"Invalid longtitude: {longtitude_deg}")
 
-        horizontal_std_m = float(gps_raw_message.v_acc) / 1000.0 # GPS_RAW_INT uncertainties are in millimeters
-        vertical_std_m = float(gps_raw_message.h_acc) / 1000.0
+        horizontal_std_m = float(gps_raw_message.h_acc) / 1000.0 # GPS_RAW_INT uncertainties are in millimeters
+        vertical_std_m = float(gps_raw_message.v_acc) / 1000.0
 
         return GeographicMeasurement(timestamp_us=time.monotonic_ns() // 1000,
                                      latitude_deg=latitude_deg,
