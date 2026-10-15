@@ -12,6 +12,8 @@ from uwb_positioning.processing.validation import MeasurementValidator
 from uwb_positioning.outputs.mavlink_connection import MavlinkConnection
 from uwb_positioning.outputs.odometry import OdometryOutput
 
+from analysis.statistics import get_measurement_age_ms, DelayStatistics
+
 from visualization.position_plotter import PositionPlotter
 
 def parse_arguments() -> argparse.Namespace:
@@ -37,6 +39,8 @@ def main() -> None:
 
     mavlink_connection = MavlinkConnection(config.mavlink)
     odometry_output = OdometryOutput(mavlink_connection)
+
+    delay_statistics = DelayStatistics()
 
     plotter = PositionPlotter() if args.plot_position else None
 
@@ -70,6 +74,9 @@ def main() -> None:
                 validated_measurement = validator.validate(delayed_measurement)
 
                 if validated_measurement.valid:
+                    measurement_age_ms = get_measurement_age_ms(validated_measurement)
+                    delay_statistics.add_sample(measurement_age_ms)
+
                     odometry_output.send(validated_measurement)
                 else:
                     print("Measurement rejected: ",
@@ -91,6 +98,12 @@ def main() -> None:
     finally:
         provider.disconnect()
         mavlink_connection.close()
+
+        print(f"Measurement age:",
+              f"Average: {delay_statistics.average_delay_ms:.1f} ms ",
+              f"Minimum: {delay_statistics.minimum_delay_ms:.1f} ms ",
+              f"Maximum: {delay_statistics.maximum_delay_ms:.1f} ms ",
+              )
 
         if plotter is not None:
             plotter.show_multiview()
