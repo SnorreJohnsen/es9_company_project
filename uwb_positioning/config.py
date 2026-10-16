@@ -58,6 +58,10 @@ class LocalTransformConfig:
     local_x_heading_deg: float = 0.0
 
 @dataclass
+class VelocityEstimatorConfig:
+    window_length: int = 5
+
+@dataclass
 class ValidationConfig:
     x_min: float = -8.0
     x_max: float = 8.0
@@ -83,6 +87,7 @@ class MavlinkConfig:
 class ArdupilotSitlAppConfig:
     provider: SitlProviderConfig
     simulation: SitlSimulationConfig
+    velocity_estimator: VelocityEstimatorConfig
     validator: ValidationConfig
     mavlink: MavlinkConfig
 
@@ -96,6 +101,7 @@ class SimulatorAppConfig:
 def load_ardupilot_sitl_config() -> ArdupilotSitlAppConfig:
     return ArdupilotSitlAppConfig(provider=SitlProviderConfig(),
                                   simulation=SitlSimulationConfig(),
+                                  velocity_estimator=VelocityEstimatorConfig(),
                                   validator=ValidationConfig(), 
                                   mavlink=MavlinkConfig(), 
                                   )

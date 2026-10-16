@@ -8,11 +8,17 @@ def make_measurement(timestamp_us: int,
                      x: float,
                      y: float,
                      z: float,
+                     vx: float,
+                     vy: float,
+                     vz: float,
                      ) -> PositionMeasurement:
     return PositionMeasurement(timestamp_us=timestamp_us,
                                   x=x,
                                   y=y,
                                   z=z,
+                                  vx=vx,
+                                  vy=vy,
+                                  vz=vz,
                                   frame="NED",
                                   )
 
@@ -24,6 +30,9 @@ def test_valid_measurement_is_accepted() -> None:
                                    x=1.0,
                                    y=1.0,
                                    z=-1.0,
+                                   vx=0.0,
+                                   vy=0.0,
+                                   vz=0.0,
                                    )
     result = validator.validate(measurement)
 
@@ -51,6 +60,9 @@ def test_position_outside_area_is_rejected(input_coordinates: tuple[float, float
                                    x=input_coordinates[0],
                                    y=input_coordinates[1],
                                    z=input_coordinates[2],
+                                   vx=0.0,
+                                   vy=0.0,
+                                   vz=0.0,
                                    )
     result = validator.validate(measurement)
 
@@ -65,11 +77,17 @@ def test_old_timestamp_is_rejected() -> None:
                              x=0.0,
                              y=0.0,
                              z=0.0,
+                             vx=0.0,
+                             vy=0.0,
+                             vz=0.0,
                              )
     second = make_measurement(timestamp_us=1_000_000,
                              x=0.0,
                              y=0.0,
                              z=0.0,
+                             vx=0.0,
+                             vy=0.0,
+                             vz=0.0,
                              )
     validator.validate(first)
     result = validator.validate(second)
@@ -88,11 +106,17 @@ def test_imposible_velocity_is_rejected() -> None:
                              x=0.0,
                              y=0.0,
                              z=0.0,
+                             vx=0.0,
+                             vy=0.0,
+                             vz=0.0,
                              )
     second = make_measurement(timestamp_us=1_100_000,
                              x=20.0,
                              y=0.0,
                              z=0.0,
+                             vx=0.0,
+                             vy=0.0,
+                             vz=0.0,
                              )
     validator.validate(first)
     result = validator.validate(second)

@@ -47,7 +47,10 @@ class MeasurementValidator:
         return all(math.isfinite(value)
                    for value in (measurement.x,
                                  measurement.y,
-                                 measurement.z
+                                 measurement.z,
+                                 measurement.vx,
+                                 measurement.vy,
+                                 measurement.vz,
                                  )
                    )
 

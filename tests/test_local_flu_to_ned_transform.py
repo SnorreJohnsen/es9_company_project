@@ -1,3 +1,4 @@
+import math
 import pytest
 
 from uwb_positioning.config import LocalTransformConfig
@@ -28,6 +29,9 @@ def test_transform_coordinates(transformer_zero_heading: LocalFluToNedTransforme
                                       x=input_coordinates[0],
                                       y=input_coordinates[1],
                                       z=input_coordinates[2],
+                                      vx=0.0,
+                                      vy=0.0,
+                                      vz=0.0,
                                       frame="UWB",
                                       )
 
@@ -50,6 +54,9 @@ def test_transform_applies_origin_translation() -> None:
                                       x=11.0,
                                       y=22.0,
                                       z=8.0,
+                                      vx=0.0,
+                                      vy=0.0,
+                                      vz=0.0,
                                       frame="UWB",
                                       )
 
@@ -71,6 +78,9 @@ def test_transform_applies_heading_rotation() -> None:
                                       x=1.0,
                                       y=2.0,
                                       z=3.0,
+                                      vx=0.0,
+                                      vy=0.0,
+                                      vz=0.0,
                                       frame="UWB",
                                       )
 
@@ -85,6 +95,9 @@ def test_transform_preserves_measurement_metadata(transformer_zero_heading: Loca
                                       x=1.0,
                                       y=2.0,
                                       z=3.0,
+                                      vx=0.0,
+                                      vy=0.0,
+                                      vz=0.0,
                                       frame="UWB",
                                       std_x=0.1,
                                       std_y=0.2,
@@ -101,5 +114,9 @@ def test_transform_preserves_measurement_metadata(transformer_zero_heading: Loca
     assert result.std_z == measurement.std_z
     assert result.valid == measurement.valid
     assert result.rejection_reason == measurement.rejection_reason
+
+    assert math.isnan(result.vx)
+    assert math.isnan(result.vy)
+    assert math.isnan(result.vz)
 
     assert result.frame == "NED"

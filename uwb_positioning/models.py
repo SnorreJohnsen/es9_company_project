@@ -20,11 +20,19 @@ class PositionMeasurement:
     y: float
     z: float
 
+    vx: float
+    vy: float
+    vz: float
+
     frame: str
 
     std_x: float | None = None
     std_y: float | None = None
     std_z: float | None = None
+
+    std_vx: float | None = None
+    std_vy: float | None = None
+    std_vz: float | None = None
 
     valid: bool = True
     rejection_reason: str | None = None

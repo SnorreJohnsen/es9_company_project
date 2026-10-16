@@ -1,5 +1,6 @@
 import random
 import time
+import math
 
 from collections import deque
 from dataclasses import dataclass
@@ -35,6 +36,9 @@ class MeasurementDegradation:
                                    x=noisy_x,
                                    y=noisy_y,
                                    z=noisy_z,
+                                   vx=math.nan,
+                                   vy=math.nan,
+                                   vz=math.nan,
                                    frame=measurement.frame,
                                    std_x=self.config.horizontal_noise_std_m,
                                    std_y=self.config.horizontal_noise_std_m,
