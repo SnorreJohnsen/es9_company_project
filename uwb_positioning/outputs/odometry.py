@@ -97,4 +97,7 @@ class OdometryOutput:
               f"x={measurement.x:7.3f} m | ",
               f"y={measurement.y:7.3f} m | ",
               f"z={measurement.z:7.3f} m | ",
+              f"vx={measurement.vx:7.3f} m | ",
+              f"vy={measurement.vy:7.3f} m | ",
+              f"vz={measurement.vz:7.3f} m | ",
               )
