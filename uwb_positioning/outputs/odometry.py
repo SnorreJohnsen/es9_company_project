@@ -29,18 +29,18 @@ class OdometryOutput:
 
         position_covariance = self._create_position_covariance(measurement)
 
-        velocity_covariance = self._create_velocity_covariance(measurement)
+        velocity_covariance = [math.nan] * 21
 
         connection.mav.odometry_send(time_usec=measurement.timestamp_us,
                                      frame_id=mavutil.mavlink.MAV_FRAME_LOCAL_FRD,
-                                     child_frame_id=mavutil.mavlink.MAV_FRAME_LOCAL_FRD,
+                                     child_frame_id=mavutil.mavlink.MAV_FRAME_BODY_FRD,
                                      x=measurement.x,
                                      y=measurement.y,
                                      z=measurement.z,
                                      q=self._unknown_attitude_quaternion(),
-                                     vx=measurement.vx,
-                                     vy=measurement.vy,
-                                     vz=measurement.vz,
+                                     vx=math.nan,
+                                     vy=math.nan,
+                                     vz=math.nan,
                                      rollspeed=math.nan,
                                      pitchspeed=math.nan,
                                      yawspeed=math.nan,
@@ -75,29 +75,10 @@ class OdometryOutput:
         return covariance
 
     @staticmethod
-    def _create_velocity_covariance(measurement: PositionMeasurement,
-                                    ) -> list[float]:
-        covariance = [0.0] * 21
-
-        if measurement.std_vx is not None:
-            covariance[0] = measurement.std_vx**2
-
-        if measurement.std_vy is not None:
-            covariance[6] = measurement.std_vy**2
-
-        if measurement.std_vz is not None:
-            covariance[11] = measurement.std_vz**2
-
-        return covariance
-
-    @staticmethod
     def _print_measurement(measurement: PositionMeasurement,
                            ) -> None:
         print("ODOMETRY preview | ",
               f"x={measurement.x:7.3f} m | ",
               f"y={measurement.y:7.3f} m | ",
               f"z={measurement.z:7.3f} m | ",
-              f"vx={measurement.vx:7.3f} m | ",
-              f"vy={measurement.vy:7.3f} m | ",
-              f"vz={measurement.vz:7.3f} m | ",
               )

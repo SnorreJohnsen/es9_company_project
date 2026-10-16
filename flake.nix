@@ -28,7 +28,6 @@
                 pydantic
                 pytest
                 pymavlink
-                scipy
               ]
             ))
           ];

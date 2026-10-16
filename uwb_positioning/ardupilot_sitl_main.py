@@ -7,7 +7,6 @@ from uwb_positioning.providers.ardupilot_sitl.provider import ArduPilotSitlProvi
 from uwb_positioning.providers.ardupilot_sitl.uwb_measurement_degradation import MeasurementDegradation
 
 from uwb_positioning.processing.coordinate_transform import GeographicToNedTransformer
-from uwb_positioning.processing.velocity_estimation import VelocityEstimator
 from uwb_positioning.processing.validation import MeasurementValidator
 
 from uwb_positioning.outputs.mavlink_connection import MavlinkConnection
@@ -35,8 +34,6 @@ def main() -> None:
     measurement_degradation = MeasurementDegradation(config.simulation)
 
     transformer = GeographicToNedTransformer()
-
-    velocity_estimator = VelocityEstimator(config.velocity_estimator)
 
     validator = MeasurementValidator(config.validator)
 
@@ -79,9 +76,8 @@ def main() -> None:
                 delayed_measurement = measurement_degradation.get_buffer_measurement()
 
                 if delayed_measurement is not None:
-                    estimated_measurement = velocity_estimator.linear_estimate(delayed_measurement)
 
-                    validated_measurement = validator.validate(estimated_measurement)
+                    validated_measurement = validator.validate(delayed_measurement)
 
                     if validated_measurement.valid:
                         measurement_age_ms = get_measurement_age_ms(validated_measurement)

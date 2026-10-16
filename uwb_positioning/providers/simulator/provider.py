@@ -1,6 +1,5 @@
 import time
 import random
-import math
 
 from uwb_positioning.config import SimulatorConfig, CircleConfig, LineConfig
 from uwb_positioning.models import PositionMeasurement
@@ -42,9 +41,6 @@ class SimulatedProvider(PositionProvider):
                 x=x,
                 y=y,
                 z=z,
-                vx=math.nan,
-                vy=math.nan,
-                vz=math.nan,
                 frame="UWB",
                 std_x=self.config.noise_std,
                 std_y=self.config.noise_std,
