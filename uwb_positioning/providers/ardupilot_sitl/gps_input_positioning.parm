@@ -1,0 +1,11 @@
+GPS1_TYPE = 14 # 14: MAVLink
+
+#ARMING_MAGTHRESH 0 # disable compass magnetic field check
+
+EK3_SRC1_POSXY 3 # 3: GPS, 6: External navigation
+EK3_SRC1_VELXY 0 # 0: None, 3: GPS, 6: External navigation
+
+EK3_SRC1_POSZ 3 # 1: Baro, 3: GPS, 6: External navigation
+EK3_SRC1_VELZ 0 # 0: None, 3: GPS, 6: External navigation
+
+EK3_SRC1_YAW 1 # 1: Compass, 3: GPS with compass fallback, 6: External navigation
