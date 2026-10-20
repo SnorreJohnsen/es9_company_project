@@ -6,7 +6,7 @@ class GeographicMeasurement:
     timestamp_us: int
 
     latitude_deg: float
-    longtitude_deg: float
+    longitude_deg: float
     altitude_m: float
 
     std_horizontal_m: float | None = None

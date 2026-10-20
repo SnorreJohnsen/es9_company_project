@@ -6,7 +6,7 @@ from uwb_positioning.config import load_ardupilot_sitl_config
 from uwb_positioning.providers.ardupilot_sitl.provider import ArduPilotSitlProvider
 from uwb_positioning.providers.ardupilot_sitl.uwb_measurement_degradation import MeasurementDegradation
 
-from uwb_positioning.processing.coordinate_transform import GeographicToNedTransformer
+from uwb_positioning.processing.coordinate_transform import SitlGeographicToNedTransformer
 from uwb_positioning.processing.validation import MeasurementValidator
 
 from uwb_positioning.outputs.mavlink_connection import MavlinkConnection
@@ -33,7 +33,7 @@ def main() -> None:
     provider = ArduPilotSitlProvider(config.provider)
     measurement_degradation = MeasurementDegradation(config.simulation)
 
-    transformer = GeographicToNedTransformer()
+    transformer = SitlGeographicToNedTransformer()
 
     validator = MeasurementValidator(config.validator)
 

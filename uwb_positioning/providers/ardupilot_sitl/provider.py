@@ -53,11 +53,11 @@ class ArduPilotSitlProvider(PositionProvider):
             gps_raw_message = newest_gps_raw_message
         
         latitude_deg = float(gps_raw_message.lat) / 1e7
-        longtitude_deg = float(gps_raw_message.lon) / 1e7
+        longitude_deg = float(gps_raw_message.lon) / 1e7
         altitude_m = float(gps_raw_message.alt) / 1000.0 # alt is in millimeters
 
         values = (latitude_deg,
-                  longtitude_deg,
+                  longitude_deg,
                   altitude_m,
                   )
 
@@ -67,15 +67,15 @@ class ArduPilotSitlProvider(PositionProvider):
         if not -90.0 <= latitude_deg <= 90.0:
             raise ValueError(f"Invalid latitude: {latitude_deg}")
 
-        if not -180.0 <= longtitude_deg <= 180.0:
-            raise ValueError(f"Invalid longtitude: {longtitude_deg}")
+        if not -180.0 <= longitude_deg <= 180.0:
+            raise ValueError(f"Invalid longitude: {longitude_deg}")
 
         horizontal_std_m = float(gps_raw_message.h_acc) / 1000.0 # GPS_RAW_INT uncertainties are in millimeters
         vertical_std_m = float(gps_raw_message.v_acc) / 1000.0
 
         return GeographicMeasurement(timestamp_us=time.monotonic_ns() // 1000,
                                      latitude_deg=latitude_deg,
-                                     longtitude_deg=longtitude_deg,
+                                     longitude_deg=longitude_deg,
                                      altitude_m=altitude_m,
                                      std_horizontal_m=horizontal_std_m,
                                      std_vertical_m=vertical_std_m,

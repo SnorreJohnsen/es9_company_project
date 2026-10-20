@@ -58,6 +58,12 @@ class LocalTransformConfig:
     local_x_heading_deg: float = 0.0
 
 @dataclass
+class GeographicTransformConfig:
+    origin_latitude_deg: float 
+    origin_longitude_deg: float
+    origin_altitude_m: float
+
+@dataclass
 class ValidationConfig:
     x_min: float = -8.0
     x_max: float = 8.0

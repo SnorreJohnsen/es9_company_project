@@ -31,7 +31,7 @@ class GpsInputOutput:
                                       time_week=0,
                                       fix_type=3,
                                       lat=round(measurement.latitude_deg * 1e7),
-                                      lon=round(measurement.longtitude_deg * 1e7),
+                                      lon=round(measurement.longitude_deg * 1e7),
                                       alt=measurement.altitude_m,
                                       hdop=0.0,
                                       vdop=0.0,
@@ -73,6 +73,6 @@ class GpsInputOutput:
     def _print_measurement(measurement: GeographicMeasurement) -> None:
         print("GPS_INPUT preview | ",
               f"lat={measurement.latitude_deg:11.7f} deg | ",
-              f"lon={measurement.longtitude_deg:11.7f} deg | ",
+              f"lon={measurement.longitude_deg:11.7f} deg | ",
               f"alt={measurement.altitude_m:11.7f} m | ",
               )
