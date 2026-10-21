@@ -114,6 +114,7 @@ def main() -> None:
         print("\nStopping program...")
 
     finally:
+        ekf_logger.disconnect()
         provider.disconnect()
         mavlink_connection.close()
 
