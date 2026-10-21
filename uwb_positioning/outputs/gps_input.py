@@ -56,7 +56,7 @@ class GpsInputOutput:
     def _create_ignore_flags(measurement: GeographicMeasurement) -> int:
         ignore_flags = (mavutil.mavlink.GPS_INPUT_IGNORE_FLAG_HDOP
                         | mavutil.mavlink.GPS_INPUT_IGNORE_FLAG_VDOP
-                        | mavutil.mavlink.GPS_INPUT_IGNORE_FLAG_VEL_HORITZ
+                        | mavutil.mavlink.GPS_INPUT_IGNORE_FLAG_VEL_HORIZ
                         | mavutil.mavlink.GPS_INPUT_IGNORE_FLAG_VEL_VERT
                         | mavutil.mavlink.GPS_INPUT_IGNORE_FLAG_SPEED_ACCURACY
                         )
