@@ -59,9 +59,9 @@ class LocalTransformConfig:
 
 @dataclass
 class GeographicTransformConfig:
-    origin_latitude_deg: float 
-    origin_longitude_deg: float
-    origin_altitude_m: float
+    origin_latitude_deg: float = -353632621 / 1e7
+    origin_longitude_deg: float = 1491652374 / 1e7 
+    origin_altitude_m: float =   584090 / 1000
 
 @dataclass
 class ValidationConfig:
@@ -89,6 +89,8 @@ class MavlinkConfig:
 class ArdupilotSitlAppConfig:
     provider: SitlProviderConfig
     simulation: SitlSimulationConfig
+    geographic_transformer: GeographicTransformConfig
+    local_transformer: LocalTransformConfig
     validator: ValidationConfig
     mavlink: MavlinkConfig
 
@@ -102,6 +104,8 @@ class SimulatorAppConfig:
 def load_ardupilot_sitl_config() -> ArdupilotSitlAppConfig:
     return ArdupilotSitlAppConfig(provider=SitlProviderConfig(),
                                   simulation=SitlSimulationConfig(),
+                                  geographic_transformer=GeographicTransformConfig(),
+                                  local_transformer=LocalTransformConfig(),
                                   validator=ValidationConfig(), 
                                   mavlink=MavlinkConfig(), 
                                   )
