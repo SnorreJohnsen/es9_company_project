@@ -42,7 +42,7 @@ class SitlProviderConfig:
 @dataclass
 class SitlEkfCsvLoggerConfig:
     connection_string: str = "udpin:127.0.0.1:14552"
-    output_path: str = "logs"
+    output_path: str = "uwb_positioning/csv_logging/logs/sitl_ekf_position.csv"
     flush_every_row: bool = False
 
 @dataclass
