@@ -12,7 +12,7 @@ from uwb_positioning.processing.validation import MeasurementValidator
 from uwb_positioning.outputs.mavlink_connection import MavlinkConnection
 from uwb_positioning.outputs.gps_input import GpsInputOutput
 
-from uwb_positioning.csv_logging.ardupilot_ekf_position import SitlEkfCsvLogger
+from uwb_positioning.csv_logging.ardupilot_ekf_state import SitlEkfLogger
 
 from analysis.statistics import get_measurement_age_ms, DelayStatistics
 
@@ -43,7 +43,7 @@ def main() -> None:
     mavlink_connection = MavlinkConnection(config.mavlink)
     odometry_output = GpsInputOutput(mavlink_connection)
 
-    ekf_logger = SitlEkfCsvLogger(config.ekf_logger)
+    ekf_logger = SitlEkfLogger(config.ekf_logger)
 
     delay_statistics = DelayStatistics()
 

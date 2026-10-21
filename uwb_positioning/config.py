@@ -40,7 +40,7 @@ class SitlProviderConfig:
     connection_string: str = "udpin:127.0.0.1:14551"
 
 @dataclass
-class SitlEkfCsvLoggerConfig:
+class SitlEkfLoggerConfig:
     connection_string: str = "udpin:127.0.0.1:14552"
     output_path: str = "uwb_positioning/csv_logging/logs/sitl_ekf_position.csv"
     flush_every_row: bool = False
@@ -100,7 +100,7 @@ class ArdupilotSitlAppConfig:
     local_transformer: LocalTransformConfig
     validator: ValidationConfig
     mavlink: MavlinkConfig
-    ekf_logger: SitlEkfCsvLoggerConfig
+    ekf_logger: SitlEkfLoggerConfig
 
 @dataclass
 class SimulatorAppConfig:
@@ -116,7 +116,7 @@ def load_ardupilot_sitl_config() -> ArdupilotSitlAppConfig:
                                   local_transformer=LocalTransformConfig(),
                                   validator=ValidationConfig(), 
                                   mavlink=MavlinkConfig(), 
-                                  ekf_logger=SitlEkfCsvLoggerConfig(),
+                                  ekf_logger=SitlEkfLoggerConfig(),
                                   )
 
 def load_simulator_config() -> SimulatorAppConfig:
