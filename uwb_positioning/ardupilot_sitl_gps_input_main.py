@@ -97,7 +97,7 @@ def main() -> None:
                 next_send_time += send_period_s
 
                 # catch up loop if send slots get missed
-                while next_send_time <= send_period_s:
+                while next_send_time <= current_time:
                     next_send_time += send_period_s
 
             time.sleep(0.001) # fast polling without overloading CPU
