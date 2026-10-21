@@ -12,6 +12,8 @@ from uwb_positioning.processing.validation import MeasurementValidator
 from uwb_positioning.outputs.mavlink_connection import MavlinkConnection
 from uwb_positioning.outputs.gps_input import GpsInputOutput
 
+from uwb_positioning.csv_logging.ardupilot_ekf_position import SitlEkfCsvLogger
+
 from analysis.statistics import get_measurement_age_ms, DelayStatistics
 
 from visualization.position_plotter import PositionPlotter
@@ -41,6 +43,8 @@ def main() -> None:
     mavlink_connection = MavlinkConnection(config.mavlink)
     odometry_output = GpsInputOutput(mavlink_connection)
 
+    ekf_logger = SitlEkfCsvLogger(config.ekf_logger)
+
     delay_statistics = DelayStatistics()
 
     plotter = PositionPlotter() if args.plot_position else None
@@ -53,6 +57,8 @@ def main() -> None:
 
         if not mavlink_connection.wait_for_heartbeat():
             return
+
+        ekf_logger.connect()
 
         simulation_start = time.monotonic() # start timer for whole simulation
         next_send_time = time.monotonic()
@@ -99,6 +105,8 @@ def main() -> None:
                 # catch up loop if send slots get missed
                 while next_send_time <= current_time:
                     next_send_time += send_period_s
+
+            ekf_logger.log()
 
             time.sleep(0.001) # fast polling without overloading CPU
 

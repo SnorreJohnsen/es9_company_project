@@ -33,10 +33,17 @@ class SimulatorConfig:
     trajectory: TrajectoryConfig = field(default_factory=
                                          LineConfig # change here for trajectory
                                          )
+
 # Ardupilot SITL
 @dataclass
 class SitlProviderConfig:
     connection_string: str = "udpin:127.0.0.1:14551"
+
+@dataclass
+class SitlEkfCsvLoggerConfig:
+    connection_string: str = "udpin:127.0.0.1:14552"
+    output_path: str = "logs"
+    flush_every_row: bool = False
 
 @dataclass
 class SitlSimulationConfig:
@@ -93,6 +100,7 @@ class ArdupilotSitlAppConfig:
     local_transformer: LocalTransformConfig
     validator: ValidationConfig
     mavlink: MavlinkConfig
+    ekf_logger: SitlEkfCsvLoggerConfig
 
 @dataclass
 class SimulatorAppConfig:
@@ -108,6 +116,7 @@ def load_ardupilot_sitl_config() -> ArdupilotSitlAppConfig:
                                   local_transformer=LocalTransformConfig(),
                                   validator=ValidationConfig(), 
                                   mavlink=MavlinkConfig(), 
+                                  ekf_logger=SitlEkfCsvLoggerConfig(),
                                   )
 
 def load_simulator_config() -> SimulatorAppConfig:
