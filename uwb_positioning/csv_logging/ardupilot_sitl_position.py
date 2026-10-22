@@ -126,7 +126,6 @@ class SitlLogger:
         self.simstate_writer.writerow(["host_time_ns",
                                        "latitude_deg",
                                        "longitude_deg",
-                                       "altitude_m",
                                        ])
                                   
     def _set_message_rate(self,
@@ -179,9 +178,8 @@ class SitlLogger:
             raise RuntimeError("SIMSTATE CSV file is not open")
 
         self.simstate_writer.writerow([host_time_ns,
-                                       message.lat,
-                                       message.lng,
-                                       message.alt,
+                                       message.lat / 1e7,
+                                       message.lng / 1e7,
                                        ])
         if self.config.flush_every_row:
             self.simstate_file.flush()
