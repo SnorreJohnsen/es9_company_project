@@ -57,6 +57,11 @@ class SitlSimulationConfig:
 
 # shared
 @dataclass
+class PositionMeasurementLoggerConfig:
+    output_path: str = "uwb_positioning/csv_logging/logs/position_measurement.csv"
+    flush_every_row: bool = False
+
+@dataclass
 class LocalTransformConfig:
     origin_x: float = 0.0
     origin_y: float = 0.0
@@ -101,6 +106,7 @@ class ArdupilotSitlAppConfig:
     validator: ValidationConfig
     mavlink: MavlinkConfig
     ekf_logger: SitlEkfLoggerConfig
+    position_measurement_logger: PositionMeasurementLoggerConfig
 
 @dataclass
 class SimulatorAppConfig:
@@ -117,6 +123,7 @@ def load_ardupilot_sitl_config() -> ArdupilotSitlAppConfig:
                                   validator=ValidationConfig(), 
                                   mavlink=MavlinkConfig(), 
                                   ekf_logger=SitlEkfLoggerConfig(),
+                                  position_measurement_logger=PositionMeasurementLoggerConfig(),
                                   )
 
 def load_simulator_config() -> SimulatorAppConfig:

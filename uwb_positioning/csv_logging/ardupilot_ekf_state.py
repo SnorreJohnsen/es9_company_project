@@ -50,7 +50,7 @@ class SitlEkfLogger:
         if self.connection is None:
             raise RuntimeError("ArduPilot SITL CSV logger is not connected")
 
-        if self.writer is None:
+        if self.file is None or self.writer is None:
             raise RuntimeError("CSV file is not open")
 
         while True:
@@ -63,15 +63,15 @@ class SitlEkfLogger:
             host_time_ns = time.monotonic_ns()
 
             self.writer.writerow([host_time_ns,
-                                      message.time_boot_ms,
-                                      message.x,
-                                      message.y,
-                                      message.z,
-                                      message.vx,
-                                      message.vy,
-                                      message.vz,
-                                      ])
-            if self.config.flush_every_row and self.file is not None:
+                                  message.time_boot_ms,
+                                  message.x,
+                                  message.y,
+                                  message.z,
+                                  message.vx,
+                                  message.vy,
+                                  message.vz,
+                                  ])
+            if self.config.flush_every_row:
                 self.file.flush()
 
     def disconnect(self) -> None:

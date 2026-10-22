@@ -13,6 +13,7 @@ from uwb_positioning.outputs.mavlink_connection import MavlinkConnection
 from uwb_positioning.outputs.gps_input import GpsInputOutput
 
 from uwb_positioning.csv_logging.ardupilot_ekf_state import SitlEkfLogger
+from uwb_positioning.csv_logging.position_measurement import PositionMeasurementLogger
 
 from analysis.statistics import get_measurement_age_ms, DelayStatistics
 
@@ -44,6 +45,7 @@ def main() -> None:
     odometry_output = GpsInputOutput(mavlink_connection)
 
     ekf_logger = SitlEkfLogger(config.ekf_logger)
+    position_measurement_logger = PositionMeasurementLogger(config.position_measurement_logger)
 
     delay_statistics = DelayStatistics()
 
@@ -59,6 +61,7 @@ def main() -> None:
             return
 
         ekf_logger.connect()
+        position_measurement_logger.open()
 
         simulation_start = time.monotonic() # start timer for whole simulation
         next_send_time = time.monotonic()
@@ -91,6 +94,7 @@ def main() -> None:
                         delay_statistics.add_sample(measurement_age_ms)
 
                         transformed_geographic_measurement = ned_to_geographic.transform(validated_measurement)
+                        position_measurement_logger.log(validated_measurement)
                         odometry_output.send(transformed_geographic_measurement)
                     else:
                         print("Measurement rejected: ",
@@ -114,6 +118,7 @@ def main() -> None:
         print("\nStopping program...")
 
     finally:
+        position_measurement_logger.close()
         ekf_logger.disconnect()
         provider.disconnect()
         mavlink_connection.close()
