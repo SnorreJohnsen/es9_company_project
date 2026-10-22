@@ -24,11 +24,17 @@ class SitlLogger:
         if self.connection is not None:
             return
 
+        print("Connecting CSV logger to ArduPilot SITL:",
+              self.config.connection_string,
+              )
+
         connection = mavutil.mavlink_connection(device=self.config.connection_string)
 
         self.connection = cast(mavutil.mavfile, connection)
 
         self.connection.wait_heartbeat()
+
+        print("Logger connected to ArduPilot SITL")
 
         self._open_ekf_file()
         self._open_simstate_file()
