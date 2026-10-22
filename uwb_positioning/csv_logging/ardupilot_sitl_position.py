@@ -180,7 +180,7 @@ class SitlLogger:
 
         self.simstate_writer.writerow([host_time_ns,
                                        message.lat,
-                                       message.lon,
+                                       message.lng,
                                        message.alt,
                                        ])
         if self.config.flush_every_row:
