@@ -3,7 +3,7 @@ import pytest
 
 from uwb_positioning.config import GeographicTransformConfig
 from uwb_positioning.models import GeographicMeasurement, PositionMeasurement
-from uwb_positioning.processing.coordinate_transform import EARTH_RADIUS_M, GeographicToNedTransformer, NedToGeographicTransformer
+from uwb_positioning.processing.coordinate_transform import GeographicToNedTransformer, NedToGeographicTransformer
 
 @pytest.fixture
 def geographic_config() -> GeographicTransformConfig:
@@ -48,11 +48,11 @@ def test_geographic_to_ned_coordinates(geographic_config: GeographicTransformCon
     east_m = 20.0
     down_m = -5.0
 
-    latitude_offset_deg = math.degrees(north_m / EARTH_RADIUS_M)
+    latitude_offset_deg = math.degrees(north_m / geographic_config.earth_radius_m)
 
     origin_latitude_rad = math.radians(geographic_config.origin_latitude_deg)
     longitude_offset_deg = math.degrees(east_m / 
-                                        (EARTH_RADIUS_M * math.cos(origin_latitude_rad))
+                                        (geographic_config.earth_radius_m * math.cos(origin_latitude_rad))
                                         )
 
     measurement = GeographicMeasurement(timestamp_us=1000,
@@ -82,11 +82,11 @@ def test_ned_to_geographic_coordinates(geographic_config: GeographicTransformCon
                                       )
     result = transformer.transform(measurement)
 
-    expected_latitude_deg = geographic_config.origin_latitude_deg + math.degrees(north_m / EARTH_RADIUS_M)
+    expected_latitude_deg = geographic_config.origin_latitude_deg + math.degrees(north_m / geographic_config.earth_radius_m)
 
     origin_latitude_rad = math.radians(geographic_config.origin_latitude_deg)
     expected_longitude_deg = geographic_config.origin_longitude_deg + math.degrees(east_m
-                                                                                   / (EARTH_RADIUS_M * math.cos(origin_latitude_rad))
+                                                                                   / (geographic_config.earth_radius_m * math.cos(origin_latitude_rad))
                                                                                    )
     expected_altitude_m = geographic_config.origin_altitude_m - down_m
 
@@ -131,33 +131,38 @@ def test_ned_and_geographic_transformers_are_inverse(geographic_config: Geograph
     assert result.std_y == original.std_y
     assert result.std_z == original.std_z
 
-def test_geographic_and_ned_transformers_preserve_uncertainty(geographic_config: GeographicTransformConfig) -> None:
-    geographic_to_ned = GeographicToNedTransformer(geographic_config)
+def test_geographic_to_ned_transformer_preserves_uncertainty(geographic_config: GeographicTransformConfig) -> None:
+    transformer = GeographicToNedTransformer(geographic_config)
 
-    geographic_measurement = GeographicMeasurement(timestamp_us=1000,
-                                                   latitude_deg=55.0,
-                                                   longitude_deg=10.0,
-                                                   altitude_m=100.0,
-                                                   std_horizontal_m=0.1,
-                                                   std_vertical_m=0.2,
-                                                   )
-    ned_to_geographic = NedToGeographicTransformer(geographic_config)
+    measurement = GeographicMeasurement(timestamp_us=1000,
+                                        latitude_deg=55.0,
+                                        longitude_deg=10.0,
+                                        altitude_m=100.0,
+                                        std_horizontal_m=0.1,
+                                        std_vertical_m=0.2,
+                                        )
+    result = transformer.transform(measurement)
 
-    ned_measurement = PositionMeasurement(timestamp_us=2000,
-                                          x=10.0,
-                                          y=20.0,
-                                          z=-5.0,
-                                          frame="NED",
-                                          std_x=0.3,
-                                          std_y=0.3,
-                                          std_z=0.4,
-                                          )
-    geographic_result = ned_to_geographic.transform(ned_measurement)
+    assert result.timestamp_us == measurement.timestamp_us
+    assert result.std_x == measurement.std_horizontal_m
+    assert result.std_y == measurement.std_horizontal_m
+    assert result.std_z == measurement.std_vertical_m
 
-    assert geographic_result.timestamp_us == ned_measurement.timestamp_us
-    assert geographic_result.std_horizontal_m == ned_measurement.std_x
-    assert geographic_result.std_horizontal_m == ned_measurement.std_y
-    assert geographic_result.std_vertical_m == ned_measurement.std_z
+def test_ned_to_geographic_transformer_preserves_uncertainty(geographic_config: GeographicTransformConfig) -> None:
+    transformer = NedToGeographicTransformer(geographic_config)
 
-                                                                               
+    measurement = PositionMeasurement(timestamp_us=2000,
+                                      x=10.0,
+                                      y=20.0,
+                                      z=-5.0,
+                                      frame="NED",
+                                      std_x=0.3,
+                                      std_y=0.3,
+                                      std_z=0.4,
+                                      )
+    result = transformer.transform(measurement)
 
+    assert result.timestamp_us == measurement.timestamp_us
+    assert result.std_horizontal_m == measurement.std_x
+    assert result.std_horizontal_m == measurement.std_y
+    assert result.std_vertical_m == measurement.std_z

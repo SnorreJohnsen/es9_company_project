@@ -58,6 +58,17 @@ class SitlSimulationConfig:
 
     delay_s: float = 0.1
 
+@dataclass
+class SitlEkfPlotterConfig:
+    output_directory: str = "visualization/figures/sitl_ekf/"
+    sync_tolerance_ms: float | None = 100.0
+    include_invalid_measurements: bool = False
+    
+    figure_width: float = 12.0
+    figure_height: float = 8.0
+    dpi: int = 150
+    histogram_bins: int | str = "auto"
+
 # shared
 @dataclass
 class PositionMeasurementLoggerConfig:
@@ -74,6 +85,8 @@ class LocalTransformConfig:
 
 @dataclass
 class GeographicTransformConfig:
+    earth_radius_m: float = 6_378_137.0
+
     origin_latitude_deg: float = -353632621 / 1e7
     origin_longitude_deg: float = 1491652374 / 1e7 
     origin_altitude_m: float =   584090 / 1000

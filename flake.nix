@@ -24,6 +24,7 @@
             (python3.withPackages (
               ps: with ps; [
                 numpy
+                pandas
                 matplotlib
                 pydantic
                 pytest

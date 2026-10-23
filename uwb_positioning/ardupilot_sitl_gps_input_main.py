@@ -12,7 +12,7 @@ from uwb_positioning.processing.validation import MeasurementValidator
 from uwb_positioning.outputs.mavlink_connection import MavlinkConnection
 from uwb_positioning.outputs.gps_input import GpsInputOutput
 
-from uwb_positioning.csv_logging.ardupilot_sitl_position import SitlLogger
+from uwb_positioning.csv_logging.ardupilot_sitl_state import SitlLogger
 from uwb_positioning.csv_logging.position_measurement import PositionMeasurementLogger
 
 from analysis.statistics import get_measurement_age_ms, DelayStatistics

@@ -1,10 +1,10 @@
 import math
 
+import numpy as np
+
 from uwb_positioning.config import LocalTransformConfig, GeographicTransformConfig
 from uwb_positioning.models import PositionMeasurement, GeographicMeasurement
 
-
-EARTH_RADIUS_M = 6_378_137.0
 
 class LocalFluToNedTransformer:
     def __init__(self, config: LocalTransformConfig):
@@ -89,11 +89,11 @@ class NedToGeographicTransformer:
         latitude0_rad = math.radians(self.config.origin_latitude_deg)
 
         latitude_deg = (self.config.origin_latitude_deg
-                       + math.degrees(measurement.x / EARTH_RADIUS_M)
+                       + math.degrees(measurement.x / self.config.earth_radius_m)
                         )
 
         longitude_deg = (self.config.origin_longitude_deg
-                         + math.degrees(measurement.y / (EARTH_RADIUS_M * math.cos(latitude0_rad)))
+                         + math.degrees(measurement.y / (self.config.earth_radius_m * math.cos(latitude0_rad)))
                          )
                         
         longitude_deg = ((longitude_deg + 180.0) % 360.0) - 180
@@ -112,30 +112,31 @@ class GeographicToNedTransformer:
     def __init__(self, config: GeographicTransformConfig):
         self.config = config
 
+    def latitude_to_north(self, latitude_deg):
+        delta_latitude_rad = np.radians(latitude_deg - self.config.origin_latitude_deg)
+
+        return self.config.earth_radius_m * delta_latitude_rad
+
+    def longitude_to_east(self, longitude_deg):
+        latitude0_rad = math.radians(self.config.origin_latitude_deg)
+        
+        delta_longitude_deg = (longitude_deg - self.config.origin_longitude_deg + 180.0
+                               ) % 360.0 - 180.0
+
+        delta_longitude_rad = np.radians(delta_longitude_deg)
+
+        return self.config.earth_radius_m * math.cos(latitude0_rad) * delta_longitude_rad
+
+    def altitude_to_down(self, altitude_m):
+        return self.config.origin_altitude_m - altitude_m
+
     def transform(self,
                   measurement: GeographicMeasurement,
                   ) -> PositionMeasurement:
-        latitude0_rad = math.radians(self.config.origin_latitude_deg)
-
-        delta_latitude_rad = math.radians(measurement.latitude_deg - self.config.origin_latitude_deg)
-
-        # normalize longitude difference to [-180, 180) degrees
-        delta_longitude_deg = ((measurement.longitude_deg - self.config.origin_longitude_deg + 180.0)
-                               % 360.0) - 180.0
-
-        delta_longitude_rad = math.radians(delta_longitude_deg)
-
-        # local approximations with arc lenght formula s=radius*Theta. Suitable for small testing areas.
-        north_m = EARTH_RADIUS_M * delta_latitude_rad
-
-        east_m = EARTH_RADIUS_M * math.cos(latitude0_rad) * delta_longitude_rad
-
-        down_m = self.config.origin_altitude_m - measurement.altitude_m
-
         return PositionMeasurement(timestamp_us=measurement.timestamp_us,
-                                   x=north_m,
-                                   y=east_m,
-                                   z=down_m,
+                                   x=self.latitude_to_north(measurement.latitude_deg),
+                                   y=self.longitude_to_east(measurement.longitude_deg),
+                                   z=self.altitude_to_down(measurement.altitude_m),
                                    frame="NED",
                                    std_x=measurement.std_horizontal_m,
                                    std_y=measurement.std_horizontal_m,
@@ -153,6 +154,7 @@ class SitlGeographicToNedTransformer:
         """ 
         Transforms geographic lat, lon, alt to NED coordinates.
         """
+        EARTH_RADIUS_M = 6_378_137.0
 
         latitude_deg = measurement.latitude_deg
         longitude_deg = measurement.longitude_deg
