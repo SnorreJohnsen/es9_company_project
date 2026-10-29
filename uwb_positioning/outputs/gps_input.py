@@ -62,10 +62,10 @@ class GpsInputOutput:
                         )
 
         if measurement.std_horizontal_m is None:
-            ignore_flags |= (mavutil.mavlink.mavutil.mavlink.GPS_INPUT_IGNORE_FLAG_HORIZONTAL_ACCURACY)
+            ignore_flags |= (mavutil.mavlink.GPS_INPUT_IGNORE_FLAG_HORIZONTAL_ACCURACY)
 
         if measurement.std_vertical_m is None:
-            ignore_flags |= (mavutil.mavlink.mavutil.mavlink.GPS_INPUT_IGNORE_FLAG_VERTICAL_ACCURACY)
+            ignore_flags |= (mavutil.mavlink.GPS_INPUT_IGNORE_FLAG_VERTICAL_ACCURACY)
 
         return ignore_flags
 
