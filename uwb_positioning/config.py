@@ -38,6 +38,7 @@ class SimulatorConfig:
 @dataclass
 class SitlProviderConfig:
     connection_string: str = "udpin:127.0.0.1:14551"
+    message_rate_hz: float = 10.0
 
 @dataclass
 class SitlLoggerConfig:
@@ -56,7 +57,7 @@ class SitlSimulationConfig:
     vertical_noise_std_m: float = 0.05
     random_seed: int | None = 42
 
-    delay_s: float = 0.1
+    delay_s: float = 0.0
 
 @dataclass
 class SitlEkfPlotterConfig:

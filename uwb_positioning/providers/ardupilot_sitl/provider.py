@@ -27,7 +27,18 @@ class ArduPilotSitlProvider(PositionProvider):
 
         self.connection = cast(mavutil.mavfile, connection) # use cast to tell pyright what to expect since mavfile can return multiple types
 
-        print("ArduPilot SITL connected")
+        heartbeat = self.connection.wait_heartbeat(timeout=10)
+        if heartbeat is None:
+            self.connection.close()
+            self.connection = None
+            raise TimeoutError("No heartbeat received from ArduPilot SITL")
+
+        self._set_message_rate(mavutil.mavlink.MAVLINK_MSG_ID_GPS2_RAW,
+                               self.config.message_rate_hz,
+                               )
+        
+        print("ArduPilot SITL connected",
+              f"requested GPS2_RAW at {self.config.message_rate_hz} Hz")
 
     def get_measurement(self) -> GeographicMeasurement | None:
         connection = self.connection
@@ -35,7 +46,7 @@ class ArduPilotSitlProvider(PositionProvider):
         if connection is None:
             raise RuntimeError("ArduPilot SITL is not connected")
 
-        gps_raw_message = connection.recv_match(type="GPS_RAW_INT",
+        gps_raw_message = connection.recv_match(type="GPS2_RAW",
                                                  blocking=False,
                                                  )
         if gps_raw_message is None:
@@ -43,7 +54,7 @@ class ArduPilotSitlProvider(PositionProvider):
 
         # drain buffered GPS_RAW_INT messages and use latest one
         while True:
-            newest_gps_raw_message = connection.recv_match(type="GPS_RAW_INT",
+            newest_gps_raw_message = connection.recv_match(type="GPS2_RAW",
                                                    blocking=False,
                                                    )
 
@@ -90,4 +101,26 @@ class ArduPilotSitlProvider(PositionProvider):
         self.connection = None
         connection.close()
 
+    def _set_message_rate(self,
+                        message_id: int,
+                        rate_hz: float,
+                        ) -> None:
+            connection = self.connection
 
+            if connection is None:
+                raise RuntimeError("ArduPilot SITL is not connected")
+
+            interval_us = int(1_000_000 / rate_hz)
+
+            connection.mav.command_long_send(connection.target_system,
+                                            connection.target_component,
+                                            mavutil.mavlink.MAV_CMD_SET_MESSAGE_INTERVAL,
+                                            0,
+                                            message_id,
+                                            interval_us,
+                                            0,
+                                            0,
+                                            0,
+                                            0,
+                                            0,
+                                            )
