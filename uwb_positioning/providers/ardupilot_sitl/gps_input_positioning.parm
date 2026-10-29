@@ -1,4 +1,11 @@
-GPS1_TYPE = 14 # 14: MAVLink
+GPS1_TYPE 14 # 14: MAVLink
+GPS_AUTO_SWITCH 0 #force ardupilot to use the external source
+GPS_PRIMARY 0 # force to use first gps
+
+
+#enable gps2 as that is used in sitl instead of uwb source
+SIM_GPS2_ENABLE 1
+GPS2_TYPE 1
 
 #ARMING_MAGTHRESH 0 # disable compass magnetic field check
 
