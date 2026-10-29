@@ -33,8 +33,8 @@ class GpsInputOutput:
                                       lat=round(measurement.latitude_deg * 1e7),
                                       lon=round(measurement.longitude_deg * 1e7),
                                       alt=measurement.altitude_m,
-                                      hdop=0.0,
-                                      vdop=0.0,
+                                      hdop=1.21, # needs for gps health check,, taken form gps2_raw.
+                                      vdop=2.00, # should be changed for uwb to represent acutal uncertainty
                                       vn=0.0,
                                       ve=0.0,
                                       vd=0.0,
@@ -54,9 +54,7 @@ class GpsInputOutput:
 
     @staticmethod
     def _create_ignore_flags(measurement: GeographicMeasurement) -> int:
-        ignore_flags = (mavutil.mavlink.GPS_INPUT_IGNORE_FLAG_HDOP
-                        | mavutil.mavlink.GPS_INPUT_IGNORE_FLAG_VDOP
-                        | mavutil.mavlink.GPS_INPUT_IGNORE_FLAG_VEL_HORIZ
+        ignore_flags = (mavutil.mavlink.GPS_INPUT_IGNORE_FLAG_VEL_HORIZ
                         | mavutil.mavlink.GPS_INPUT_IGNORE_FLAG_VEL_VERT
                         | mavutil.mavlink.GPS_INPUT_IGNORE_FLAG_SPEED_ACCURACY
                         )
