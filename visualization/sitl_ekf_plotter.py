@@ -828,7 +828,7 @@ class BatchExperimentAnalyzer:
         lines = [
             "# EKF parameter experiment comparison", "",
             "Horizontal errors are evaluated against SIMSTATE at the external-measurement timestamps. "
-            "EKF and SIMSTATE samples are linearly interpolated to those timestamps; no extrapolation is performed.",
+            "EKF and SIMSTATE samples are linearly interpolated to those timestamps, no extrapolation is performed.",
             "",
             "Positive improvement means a lower EKF horizontal RMSE.",
             "",
@@ -856,7 +856,7 @@ class BatchExperimentAnalyzer:
         lines.extend([
             "", "## Metric definitions", "",
             "- **Horizontal RMSE:** square root of the mean squared 2D North/East position-error magnitude.",
-            "- **Horizontal MAE:** mean 2D horizontal position-error magnitude (not component-wise MAE).",
+            "- **Horizontal MAE:** mean 2D horizontal position-error magnitude (not component-wise Mean Absoulute Error (MAE)).",
             "- **P95 / max:** 95th percentile and maximum 2D horizontal error magnitude.",
             "- **vs baseline:** `(baseline EKF RMSE - run EKF RMSE) / baseline EKF RMSE * 100`.",
             "- **vs GPS:** `(run GPS RMSE - run EKF RMSE) / run GPS RMSE * 100`.",
