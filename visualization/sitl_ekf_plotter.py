@@ -815,13 +815,13 @@ class BatchExperimentAnalyzer:
     @staticmethod
     def _write_markdown_summary(results: pd.DataFrame, output_path: Path) -> None:
         columns = [
-            "parameter", "factor_label", "parameter_value",
+            "parameter", "factor_label",
             "measurement_horizontal_rmse_m", "ekf_horizontal_rmse_m",
             "improvement_vs_baseline_pct", "improvement_vs_gps_pct",
             "ekf_horizontal_p95_m", "ekf_horizontal_max_m", "ekf_samples",
         ]
         headings = [
-            "Parameter", "Factor", "Parameter value", "GPS RMSE (m)",
+            "Parameter", "Factor", "GPS RMSE (m)",
             "EKF RMSE (m)", "vs baseline (%)", "vs GPS (%)",
             "EKF P95 (m)", "EKF max (m)", "Samples",
         ]
