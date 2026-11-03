@@ -1,21 +1,7 @@
 """Plot and compare external position measurements, ArduPilot EKF, and SITL truth.
 
-Single-run mode remains available. Batch mode expects:
-
-    experiment_root/
-        baseline/
-            <position CSV>   <EKF CSV>   <SIMSTATE CSV>
-        EK3_POSNE_M_NSE/
-            0.5x/
-                <position CSV>   <EKF CSV>   <SIMSTATE CSV>
-            1.5x/
-                ...
-        EK3_ACC_P_NSE/
-            0.5x/
-                ...
-
-The CSV filenames are taken from the project's logger config by default. They
-can also be provided explicitly on the command line.
+Batch mode also calculates horizontal RMSE bias/std contributions and along-track
+error metrics, then plots their sensitivity to each experiment parameter.
 """
 
 from __future__ import annotations
@@ -271,7 +257,7 @@ class EKFPlotter:
         return fig, axes
 
     @staticmethod
-    def _read_csv(filename: str) -> pd.DataFrame:
+    def _read_csv(filename: str | Path) -> pd.DataFrame:
         if not os.path.isfile(filename):
             raise FileNotFoundError(f"CSV file does not exist: {filename}")
         frame = pd.read_csv(filename)
@@ -350,6 +336,13 @@ class EKFPlotter:
         result["latitude_deg"] = self._numeric(result, "latitude_deg")
         result["longitude_deg"] = self._numeric(result, "longitude_deg")
         result = result.dropna(subset=["latitude_deg", "longitude_deg"])
+        finite = (
+            np.isfinite(result["latitude_deg"].to_numpy(dtype=float))
+            & np.isfinite(result["longitude_deg"].to_numpy(dtype=float))
+        )
+        result = result.loc[finite].copy()
+        if result.empty:
+            raise RuntimeError("SIMSTATE CSV has no finite latitude/longitude samples")
         result["north_m"] = self.geographic_transformer.latitude_to_north(
             self._series(result, "latitude_deg")
         )
@@ -400,41 +393,64 @@ class EKFPlotter:
         output_prefix: str,
         max_bracket_distance_ns: int | None,
     ) -> pd.DataFrame:
-        """Linearly interpolate source data without extrapolating.
+        """Interpolate source data without extrapolating.
 
-        When a sync tolerance is configured, both bracketing source samples must
-        be within that tolerance of the target timestamp. This avoids silently
-        interpolating across large data gaps.
+        If a synchronization tolerance is configured, both bracketing source
+        samples must be within that tolerance of the target timestamp.
         """
-        clean = source.dropna(subset=["host_time_ns", *value_columns]).copy()
+        target_times_ns = np.asarray(target_times_ns, dtype=np.int64)
+        output = pd.DataFrame(index=np.arange(len(target_times_ns)))
+        empty_values = {
+            f"{output_prefix}_{column}": np.full(len(target_times_ns), np.nan)
+            for column in value_columns
+        }
+        if source.empty:
+            for column, values in empty_values.items():
+                output[column] = values
+            output[f"_{output_prefix}_matched"] = False
+            return output
+
+        clean = source[["host_time_ns", *value_columns]].copy()
+        for column in value_columns:
+            clean[column] = pd.to_numeric(clean[column], errors="coerce")
+        clean = clean.dropna(subset=["host_time_ns", *value_columns])
+        if not clean.empty:
+            finite = np.isfinite(clean[list(value_columns)].to_numpy(dtype=float)).all(axis=1)
+            clean = clean.loc[finite]
         clean = clean.sort_values("host_time_ns").drop_duplicates(
             subset=["host_time_ns"], keep="last",
         )
-        target_times_ns = np.asarray(target_times_ns, dtype=np.int64)
-        output = pd.DataFrame(index=np.arange(len(target_times_ns)))
+
         if clean.empty:
-            for column in value_columns:
-                output[f"{output_prefix}_{column}"] = np.nan
+            for column, values in empty_values.items():
+                output[column] = values
             output[f"_{output_prefix}_matched"] = False
             return output
 
         source_times = clean["host_time_ns"].to_numpy(dtype=np.int64)
         right = np.searchsorted(source_times, target_times_ns, side="left")
-        in_range = (target_times_ns >= source_times[0]) & (target_times_ns <= source_times[-1])
+        in_range = (
+            (target_times_ns >= source_times[0])
+            & (target_times_ns <= source_times[-1])
+        )
         safe_right = np.clip(right, 0, len(source_times) - 1)
         exact = in_range & (source_times[safe_right] == target_times_ns)
-        left = np.where(exact, safe_right, np.clip(right - 1, 0, len(source_times) - 1))
-        right = np.where(exact, safe_right, safe_right)
+        left = np.where(
+            exact,
+            safe_right,
+            np.clip(right - 1, 0, len(source_times) - 1),
+        )
+        right = safe_right
 
         matched = in_range.copy()
         if max_bracket_distance_ns is not None:
             left_distance = target_times_ns - source_times[left]
             right_distance = source_times[right] - target_times_ns
-            matched &= (left_distance <= max_bracket_distance_ns)
-            matched &= (right_distance <= max_bracket_distance_ns)
+            matched &= left_distance <= max_bracket_distance_ns
+            matched &= right_distance <= max_bracket_distance_ns
 
         for column in value_columns:
-            values = pd.to_numeric(clean[column], errors="coerce").to_numpy(dtype=float)
+            values = clean[column].to_numpy(dtype=float)
             interpolated = np.interp(target_times_ns, source_times, values)
             interpolated[~matched] = np.nan
             output[f"{output_prefix}_{column}"] = interpolated
@@ -471,6 +487,8 @@ class EKFPlotter:
             aligned = pd.concat([aligned, ekf_values], axis=1)
         else:
             aligned["_ekf_matched"] = False
+            for component in ("north_m", "east_m", "down_m"):
+                aligned[f"ekf_{component}"] = np.nan
 
         truth_values = self._interpolate_to_timeline(
             self.sitl_simstate, target_times,
@@ -483,14 +501,17 @@ class EKFPlotter:
             ("ekf", "ekf_north_m", "ekf_east_m"),
         )
         for prefix, north, east in sources:
-            if north not in aligned.columns or east not in aligned.columns:
-                continue
-            aligned[f"{prefix}_north_error_m"] = aligned[north] - aligned["truth_north_m"]
-            aligned[f"{prefix}_east_error_m"] = aligned[east] - aligned["truth_east_m"]
+            aligned[f"{prefix}_north_error_m"] = (
+                aligned[north] - aligned["truth_north_m"]
+            )
+            aligned[f"{prefix}_east_error_m"] = (
+                aligned[east] - aligned["truth_east_m"]
+            )
             aligned[f"{prefix}_horizontal_error_m"] = np.sqrt(
                 aligned[f"{prefix}_north_error_m"] ** 2
                 + aligned[f"{prefix}_east_error_m"] ** 2
             )
+
         return aligned.reset_index(drop=True)
 
     def print_alignment_diagnostics(self) -> None:
@@ -641,10 +662,14 @@ class BatchExperimentAnalyzer:
         for parameter_directory in sorted(path for path in root.iterdir() if path.is_dir()):
             if parameter_directory.name.lower() in ignored_names:
                 continue
-            factor_directories = sorted(path for path in parameter_directory.iterdir() if path.is_dir())
+            factor_directories = sorted(
+                path for path in parameter_directory.iterdir() if path.is_dir()
+            )
             for factor_directory in factor_directories:
                 metadata = self._read_metadata(factor_directory)
-                factor_label, factor_value = self._parse_factor(factor_directory.name, metadata)
+                factor_label, factor_value = self._parse_factor(
+                    factor_directory.name, metadata,
+                )
                 parameter_name = str(metadata.get("parameter", parameter_directory.name))
                 experiments.append(ExperimentSpec(
                     name=f"{parameter_name} ({factor_label})",
@@ -668,7 +693,10 @@ class BatchExperimentAnalyzer:
         scored: list[tuple[int, Path]] = []
         for candidate in candidates:
             try:
-                columns = {str(column).strip().lower() for column in pd.read_csv(candidate, nrows=2).columns}
+                columns = {
+                    str(column).strip().lower()
+                    for column in pd.read_csv(candidate, nrows=2).columns
+                }
             except Exception:
                 continue
             filename = candidate.stem.lower()
@@ -728,56 +756,137 @@ class BatchExperimentAnalyzer:
         return resolved[0], resolved[1], resolved[2]
 
     @staticmethod
-    def _calculate_error_metrics(aligned: pd.DataFrame, prefix: str) -> dict[str, float | int]:
-        north_column = f"{prefix}_north_error_m"
-        east_column = f"{prefix}_east_error_m"
-        horizontal_column = f"{prefix}_horizontal_error_m"
-        if not {north_column, east_column, horizontal_column}.issubset(aligned.columns):
-            return {
-                f"{prefix}_samples": 0,
-                f"{prefix}_horizontal_rmse_m": np.nan,
-                f"{prefix}_horizontal_mae_m": np.nan,
-                f"{prefix}_horizontal_p95_m": np.nan,
-                f"{prefix}_horizontal_max_m": np.nan,
-                f"{prefix}_north_bias_m": np.nan,
-                f"{prefix}_east_bias_m": np.nan,
-            }
+    def _calculate_error_metrics(
+        aligned: pd.DataFrame,
+        prefix: str,
+    ) -> dict[str, float | int]:
+        """Calculate horizontal RMSE and its exact bias/std decomposition."""
+        north = pd.to_numeric(
+            aligned.get(f"{prefix}_north_error_m", pd.Series(dtype=float)),
+            errors="coerce",
+        ).to_numpy(dtype=float)
+        east = pd.to_numeric(
+            aligned.get(f"{prefix}_east_error_m", pd.Series(dtype=float)),
+            errors="coerce",
+        ).to_numpy(dtype=float)
+        horizontal = pd.to_numeric(
+            aligned.get(f"{prefix}_horizontal_error_m", pd.Series(dtype=float)),
+            errors="coerce",
+        ).to_numpy(dtype=float)
 
-        north = pd.to_numeric(aligned[north_column], errors="coerce").to_numpy(dtype=float)
-        east = pd.to_numeric(aligned[east_column], errors="coerce").to_numpy(dtype=float)
-        horizontal = pd.to_numeric(aligned[horizontal_column], errors="coerce").to_numpy(dtype=float)
         valid = np.isfinite(north) & np.isfinite(east) & np.isfinite(horizontal)
         north, east, horizontal = north[valid], east[valid], horizontal[valid]
         if horizontal.size == 0:
             return {
                 f"{prefix}_samples": 0,
                 f"{prefix}_horizontal_rmse_m": np.nan,
+                f"{prefix}_horizontal_bias_rmse_m": np.nan,
+                f"{prefix}_horizontal_std_rmse_m": np.nan,
                 f"{prefix}_horizontal_mae_m": np.nan,
                 f"{prefix}_horizontal_p95_m": np.nan,
                 f"{prefix}_horizontal_max_m": np.nan,
                 f"{prefix}_north_bias_m": np.nan,
                 f"{prefix}_east_bias_m": np.nan,
+                f"{prefix}_north_std_m": np.nan,
+                f"{prefix}_east_std_m": np.nan,
             }
+
+        north_bias = float(np.mean(north))
+        east_bias = float(np.mean(east))
+        north_std = float(np.std(north, ddof=0))
+        east_std = float(np.std(east, ddof=0))
+
         return {
             f"{prefix}_samples": int(horizontal.size),
             f"{prefix}_horizontal_rmse_m": float(np.sqrt(np.mean(horizontal ** 2))),
+            f"{prefix}_horizontal_bias_rmse_m": float(np.hypot(north_bias, east_bias)),
+            f"{prefix}_horizontal_std_rmse_m": float(np.hypot(north_std, east_std)),
             f"{prefix}_horizontal_mae_m": float(np.mean(horizontal)),
             f"{prefix}_horizontal_p95_m": float(np.percentile(horizontal, 95)),
             f"{prefix}_horizontal_max_m": float(np.max(horizontal)),
-            f"{prefix}_north_bias_m": float(np.mean(north)),
-            f"{prefix}_east_bias_m": float(np.mean(east)),
+            f"{prefix}_north_bias_m": north_bias,
+            f"{prefix}_east_bias_m": east_bias,
+            f"{prefix}_north_std_m": north_std,
+            f"{prefix}_east_std_m": east_std,
+        }
+
+    @staticmethod
+    def _calculate_along_track_metrics(
+        aligned: pd.DataFrame,
+        prefix: str = "ekf",
+    ) -> dict[str, float | int]:
+        """Project position error onto the SIMSTATE direction of travel.
+
+        A negative signed mean indicates the estimate is behind the truth
+        relative to the current direction of motion.
+        """
+        empty = {
+            f"{prefix}_along_track_samples": 0,
+            f"{prefix}_along_track_rmse_m": np.nan,
+            f"{prefix}_along_track_bias_m": np.nan,
+            f"{prefix}_along_track_mean_error_m": np.nan,
+            f"{prefix}_along_track_std_m": np.nan,
+        }
+        required = [
+            "host_time_ns", "truth_north_m", "truth_east_m",
+            f"{prefix}_north_m", f"{prefix}_east_m",
+        ]
+        if not set(required).issubset(aligned.columns):
+            return empty
+
+        samples = aligned[required].apply(pd.to_numeric, errors="coerce").dropna()
+        samples = samples.sort_values("host_time_ns").drop_duplicates(
+            "host_time_ns", keep="last",
+        )
+        if len(samples) < 3:
+            return empty
+
+        # Subtract integer timestamps before converting to seconds to retain
+        # precision with nanosecond timestamps.
+        time_ns = samples["host_time_ns"].to_numpy(dtype=np.int64)
+        time_s = (time_ns - time_ns[0]).astype(float) / 1_000_000_000.0
+        truth_n = samples["truth_north_m"].to_numpy(dtype=float)
+        truth_e = samples["truth_east_m"].to_numpy(dtype=float)
+        error_n = samples[f"{prefix}_north_m"].to_numpy(dtype=float) - truth_n
+        error_e = samples[f"{prefix}_east_m"].to_numpy(dtype=float) - truth_e
+
+        velocity_n = np.gradient(truth_n, time_s)
+        velocity_e = np.gradient(truth_e, time_s)
+        speed = np.hypot(velocity_n, velocity_e)
+
+        # Ignore near-stationary samples, where the direction of travel is
+        # poorly defined. Adjust 0.2 m/s here if your simulation needs it.
+        moving = np.isfinite(speed) & (speed >= 0.2)
+        if not moving.any():
+            return empty
+
+        along_error = (
+            error_n[moving] * velocity_n[moving]
+            + error_e[moving] * velocity_e[moving]
+        ) / speed[moving]
+        along_error = along_error[np.isfinite(along_error)]
+        if along_error.size == 0:
+            return empty
+
+        mean_error = float(np.mean(along_error))
+        return {
+            f"{prefix}_along_track_samples": int(along_error.size),
+            f"{prefix}_along_track_rmse_m": float(np.sqrt(np.mean(along_error ** 2))),
+            f"{prefix}_along_track_bias_m": abs(mean_error),
+            f"{prefix}_along_track_mean_error_m": mean_error,
+            f"{prefix}_along_track_std_m": float(np.std(along_error, ddof=0)),
         }
 
     def _analyze_one(
         self,
         experiment: ExperimentSpec,
         generate_plots: bool = True,
-    ) -> tuple[dict[str, Any], np.ndarray | None]:
+    ) -> tuple[dict[str, Any], np.ndarray]:
         position_path, ekf_path, simstate_path = self._resolve_csv_paths(experiment.directory)
-        plot_directory = experiment.directory / "plots"
         plotter = EKFPlotter(
-            self.plot_config, self.geographic_config,
-            output_directory=plot_directory,
+            self.plot_config,
+            self.geographic_config,
+            output_directory=experiment.directory / "plots",
         )
         plotter.load_csv_files(str(position_path), str(ekf_path), str(simstate_path))
         plotter.print_alignment_diagnostics()
@@ -789,8 +898,6 @@ class BatchExperimentAnalyzer:
             plotter.error_distributions()
 
         aligned = plotter._align_to_position_timeline()
-        measurement_metrics = self._calculate_error_metrics(aligned, "measurement")
-        ekf_metrics = self._calculate_error_metrics(aligned, "ekf")
         row: dict[str, Any] = {
             "experiment": experiment.name,
             "parameter": experiment.parameter_name,
@@ -798,14 +905,16 @@ class BatchExperimentAnalyzer:
             "factor_label": experiment.factor_label,
             "is_baseline": experiment.is_baseline,
             "directory": str(experiment.directory),
-            **measurement_metrics,
-            **ekf_metrics,
+            **self._calculate_error_metrics(aligned, "measurement"),
+            **self._calculate_error_metrics(aligned, "ekf"),
+            **self._calculate_along_track_metrics(aligned, "ekf"),
         }
 
         metadata = self._read_metadata(experiment.directory)
         row["parameter_value"] = metadata.get("parameter_value", np.nan)
         row["baseline_parameter_value"] = metadata.get("baseline_parameter_value", np.nan)
-        return row, aligned["ekf_horizontal_error_m"].to_numpy(dtype=float)
+        errors = aligned["ekf_horizontal_error_m"].to_numpy(dtype=float)
+        return row, errors
 
     @staticmethod
     def _safe_filename(value: str) -> str:
@@ -816,51 +925,61 @@ class BatchExperimentAnalyzer:
     def _write_markdown_summary(results: pd.DataFrame, output_path: Path) -> None:
         columns = [
             "parameter", "factor_label",
-            "measurement_horizontal_rmse_m", "ekf_horizontal_rmse_m",
-            "improvement_vs_baseline_pct", "improvement_vs_gps_pct",
+            "measurement_horizontal_rmse_m",
+            "ekf_horizontal_rmse_m",
+            "ekf_horizontal_bias_rmse_m",
+            "ekf_horizontal_std_rmse_m",
+            "ekf_along_track_rmse_m",
+            "ekf_along_track_bias_m",
+            "ekf_along_track_std_m",
+            "ekf_along_track_mean_error_m",
+            "improvement_vs_baseline_pct",
+            "improvement_vs_gps_pct",
             "ekf_horizontal_p95_m", "ekf_horizontal_max_m", "ekf_samples",
         ]
         headings = [
-            "Parameter", "Factor", "GPS RMSE (m)",
-            "EKF RMSE (m)", "vs baseline (%)", "vs GPS (%)",
-            "EKF P95 (m)", "EKF max (m)", "Samples",
+            "Parameter", "Factor", "External RMSE (m)", "EKF RMSE (m)",
+            "EKF bias RMSE (m)", "EKF std RMSE (m)",
+            "Along-track RMSE (m)", "Along-track bias (m)",
+            "Along-track std (m)", "Signed along-track mean (m)",
+            "vs baseline (%)", "vs external (%)", "EKF P95 (m)",
+            "EKF max (m)", "Samples",
         ]
         lines = [
             "# EKF parameter experiment comparison", "",
-            "Horizontal errors are evaluated against SIMSTATE at the external-measurement timestamps. "
-            "EKF and SIMSTATE samples are linearly interpolated to those timestamps, no extrapolation is performed.",
-            "",
-            "Positive improvement means a lower EKF horizontal RMSE.",
+            "Errors are evaluated against SIMSTATE at external-measurement timestamps. "
+            "EKF and SIMSTATE positions are interpolated to those timestamps without extrapolation.",
             "",
             "| " + " | ".join(headings) + " |",
             "| " + " | ".join(["---"] * len(headings)) + " |",
         ]
         for _, row in results.iterrows():
-            values: list[str] = []
+            values = []
             for column in columns:
                 value = row.get(column, np.nan)
                 if pd.isna(value):
                     values.append("—")
                 elif column.endswith("_pct"):
                     values.append(f"{float(value):.1f}")
-                elif column in {"factor_label", "parameter"}:
+                elif column in {"parameter", "factor_label"}:
                     values.append(str(value))
-                elif column == "ekf_samples":
+                elif column.endswith("_samples"):
                     values.append(str(int(value)))
                 else:
-                    try:
-                        values.append(f"{float(value):.3f}")
-                    except (TypeError, ValueError):
-                        values.append(str(value))
+                    values.append(f"{float(value):.3f}")
             lines.append("| " + " | ".join(values) + " |")
+
         lines.extend([
             "", "## Metric definitions", "",
-            "- **Horizontal RMSE:** square root of the mean squared 2D North/East position-error magnitude.",
-            "- **Horizontal MAE:** mean 2D horizontal position-error magnitude (not component-wise Mean Absoulute Error (MAE)).",
-            "- **P95 / max:** 95th percentile and maximum 2D horizontal error magnitude.",
-            "- **vs baseline:** `(baseline EKF RMSE - run EKF RMSE) / baseline EKF RMSE * 100`.",
-            "- **vs GPS:** `(run GPS RMSE - run EKF RMSE) / run GPS RMSE * 100`.",
-            "- Only horizontal error is summarized because the current SIMSTATE CSV parser provides latitude/longitude, not an independent vertical ground-truth field.",
+            "- **Horizontal RMSE:** total 2D North/East position error.",
+            "- **Horizontal bias RMSE:** magnitude of the mean North/East error vector.",
+            "- **Horizontal std RMSE:** root-sum-square of the North and East population standard deviations.",
+            "- **Decomposition:** total RMSE squared = bias RMSE squared + std RMSE squared.",
+            "- **Along-track error:** EKF-minus-truth position error projected onto the SIMSTATE direction of travel.",
+            "- **Along-track bias:** absolute mean signed along-track error; a negative signed mean indicates the EKF is behind the truth on average.",
+            "- **Along-track std:** population standard deviation of the signed along-track error.",
+            "- Along-track metrics ignore samples where SIMSTATE speed is below 0.2 m/s.",
+            "- **P95 / max:** 95th percentile and maximum horizontal error magnitude.",
             "",
         ])
         output_path.write_text("\n".join(lines), encoding="utf-8")
@@ -870,20 +989,23 @@ class BatchExperimentAnalyzer:
         results: pd.DataFrame,
         error_arrays: dict[str, np.ndarray],
         output_directory: Path,
-        baseline_rmse: float,
     ) -> None:
+        """Create the existing ranking/boxplot plus two separate decompositions."""
         output_directory.mkdir(parents=True, exist_ok=True)
         non_baseline = results.loc[~results["is_baseline"]].copy()
 
-        # Overall improvement ranking.
+        # Overall improvement ranking (retained from the original comparison plots).
         if not non_baseline.empty:
-            ranked = non_baseline.dropna(subset=["improvement_vs_baseline_pct"]).sort_values(
-                "improvement_vs_baseline_pct",
-            )
+            ranked = non_baseline.dropna(
+                subset=["improvement_vs_baseline_pct"]
+            ).sort_values("improvement_vs_baseline_pct")
             if not ranked.empty:
                 fig_height = max(4.5, 0.38 * len(ranked) + 1.5)
                 fig, axis = plt.subplots(figsize=(11, fig_height))
-                labels = [f"{row.parameter} · {row.factor_label}" for row in ranked.itertuples()]
+                labels = [
+                    f"{row.parameter} · {row.factor_label}"
+                    for row in ranked.itertuples()
+                ]
                 values = ranked["improvement_vs_baseline_pct"].to_numpy(dtype=float)
                 axis.barh(labels, values)
                 axis.axvline(0.0, linewidth=1, linestyle="--")
@@ -891,10 +1013,13 @@ class BatchExperimentAnalyzer:
                 axis.set_title("EKF parameter experiments ranked by improvement")
                 axis.grid(True, axis="x", alpha=0.3)
                 fig.tight_layout()
-                fig.savefig(output_directory / "improvement_vs_baseline.png", dpi=150, bbox_inches="tight")
+                fig.savefig(
+                    output_directory / "improvement_vs_baseline.png",
+                    dpi=150, bbox_inches="tight",
+                )
                 plt.close(fig)
 
-        # Distribution across all runs. Boxplots expose spread and outliers.
+        # Horizontal-error boxplot (retained from the original comparison plots).
         labels: list[str] = []
         arrays: list[np.ndarray] = []
         for row in results.itertuples():
@@ -903,58 +1028,132 @@ class BatchExperimentAnalyzer:
                 continue
             values = values[np.isfinite(values)]
             if values.size:
-                labels.append("Baseline" if row.is_baseline else f"{row.parameter}\n{row.factor_label}")
+                labels.append(
+                    "Baseline" if row.is_baseline
+                    else f"{row.parameter}\n{row.factor_label}"
+                )
                 arrays.append(values)
+
         if arrays:
             fig_height = max(5.0, 0.45 * len(labels) + 2.0)
-            fig, axis = plt.subplots(figsize=(max(9.0, 1.1 * len(labels)), fig_height))
+            fig, axis = plt.subplots(
+                figsize=(max(9.0, 1.1 * len(labels)), fig_height)
+            )
             try:
                 axis.boxplot(arrays, tick_labels=labels, showfliers=True)
-            except TypeError:  # Matplotlib < 3.9 used the `labels` keyword.
+            except TypeError:  # Matplotlib < 3.9 uses the `labels` keyword.
                 axis.boxplot(arrays, labels=labels, showfliers=True)
             axis.set_ylabel("2D horizontal EKF error (m)")
             axis.set_title("EKF horizontal error distributions by experiment")
             axis.grid(True, axis="y", alpha=0.3)
             axis.tick_params(axis="x", labelrotation=35)
             fig.tight_layout()
-            fig.savefig(output_directory / "horizontal_error_boxplots.png", dpi=150, bbox_inches="tight")
+            fig.savefig(
+                output_directory / "horizontal_error_boxplots.png",
+                dpi=150, bbox_inches="tight",
+            )
             plt.close(fig)
 
-        # One sensitivity plot per parameter; factor axes are not mixed across parameters.
+        baseline_rows = results.loc[results["is_baseline"]]
+        if baseline_rows.empty:
+            return
+        baseline = baseline_rows.iloc[0]
+
+        # Create two figures for each parameter. The baseline is included at 1.0x.
         for parameter, group in non_baseline.groupby("parameter", sort=True):
-            numeric_group = group.dropna(subset=["factor", "ekf_horizontal_rmse_m"]).sort_values("factor")
-            if numeric_group.empty:
+            group = group.dropna(subset=["factor"])
+            if group.empty:
                 continue
-            fig, axis = plt.subplots(figsize=(8, 5))
-            axis.plot(
-                numeric_group["factor"], numeric_group["ekf_horizontal_rmse_m"],
-                marker="o", label="EKF horizontal RMSE",
+
+            baseline_row = baseline.to_frame().T.copy()
+            baseline_row["factor"] = 1.0
+            data = pd.concat([baseline_row, group], ignore_index=True)
+            data["factor"] = pd.to_numeric(data["factor"], errors="coerce")
+            data = data.dropna(subset=["factor"]).sort_values("factor")
+            x = data["factor"].to_numpy(dtype=float)
+
+            safe_parameter = BatchExperimentAnalyzer._safe_filename(str(parameter))
+            xlabel = f"{parameter} factor relative to baseline"
+
+            # Figure 1: horizontal position RMSE decomposition.
+            horizontal_metrics = [
+                ("ekf_horizontal_rmse_m", "EKF total RMSE", "-"),
+                ("ekf_horizontal_bias_rmse_m", "Bias contribution", "--"),
+                ("ekf_horizontal_std_rmse_m", "Std contribution", ":"),
+                ("measurement_horizontal_rmse_m", "External measurement RMSE", "-."),
+            ]
+            fig, axis = plt.subplots(figsize=(9, 5.5))
+            for column, label, linestyle in horizontal_metrics:
+                if column not in data.columns:
+                    continue
+                y = pd.to_numeric(data[column], errors="coerce").to_numpy(dtype=float)
+                valid = np.isfinite(x) & np.isfinite(y)
+                if valid.any():
+                    axis.plot(
+                        x[valid], y[valid], marker="o",
+                        linestyle=linestyle, label=label,
+                    )
+            axis.axvline(
+                1.0, color="gray", linestyle="--", alpha=0.6,
+                label="Baseline (1.0x)",
             )
-            axis.axhline(baseline_rmse, linestyle="--", label="Baseline EKF RMSE")
-            if "measurement_horizontal_rmse_m" in numeric_group.columns:
-                axis.plot(
-                    numeric_group["factor"], numeric_group["measurement_horizontal_rmse_m"],
-                    marker="s", linestyle=":", label="GPS measurement RMSE",
-                )
-            axis.set_xlabel("Parameter factor relative to baseline")
-            axis.set_ylabel("Horizontal RMSE (m)")
-            axis.set_title(f"EKF sensitivity: {parameter}")
+            axis.set_xlabel(xlabel)
+            axis.set_ylabel("Horizontal error (m)")
+            axis.set_title(f"Horizontal RMSE decomposition: {parameter}")
             axis.grid(True, alpha=0.3)
             axis.legend()
             fig.tight_layout()
-            filename = f"rmse_vs_factor_{BatchExperimentAnalyzer._safe_filename(str(parameter))}.png"
-            fig.savefig(output_directory / filename, dpi=150, bbox_inches="tight")
+            fig.savefig(
+                output_directory / f"horizontal_rmse_decomposition_{safe_parameter}.png",
+                dpi=150, bbox_inches="tight",
+            )
             plt.close(fig)
 
-    def run(self, root_directory: str | Path, generate_individual_plots: bool = True) -> pd.DataFrame:
+            # Figure 2: along-track position RMSE decomposition.
+            along_track_metrics = [
+                ("ekf_along_track_rmse_m", "Along-track RMSE", "-"),
+                ("ekf_along_track_bias_m", "Along-track bias", "--"),
+                ("ekf_along_track_std_m", "Along-track std", ":"),
+            ]
+            fig, axis = plt.subplots(figsize=(9, 5.5))
+            for column, label, linestyle in along_track_metrics:
+                if column not in data.columns:
+                    continue
+                y = pd.to_numeric(data[column], errors="coerce").to_numpy(dtype=float)
+                valid = np.isfinite(x) & np.isfinite(y)
+                if valid.any():
+                    axis.plot(
+                        x[valid], y[valid], marker="o",
+                        linestyle=linestyle, label=label,
+                    )
+            axis.axvline(
+                1.0, color="gray", linestyle="--", alpha=0.6,
+                label="Baseline (1.0x)",
+            )
+            axis.set_xlabel(xlabel)
+            axis.set_ylabel("Along-track error (m)")
+            axis.set_title(f"Along-track RMSE decomposition: {parameter}")
+            axis.grid(True, alpha=0.3)
+            axis.legend()
+            fig.tight_layout()
+            fig.savefig(
+                output_directory / f"along_track_rmse_decomposition_{safe_parameter}.png",
+                dpi=150, bbox_inches="tight",
+            )
+            plt.close(fig)
+
+    def run(
+        self,
+        root_directory: str | Path,
+        generate_individual_plots: bool = True,
+    ) -> pd.DataFrame:
         root = Path(root_directory).expanduser().resolve()
         experiments = self.discover_experiments(root)
-        baseline_spec = next(experiment for experiment in experiments if experiment.is_baseline)
-
         rows: list[dict[str, Any]] = []
         failures: list[dict[str, str]] = []
         error_arrays: dict[str, np.ndarray] = {}
         baseline_row: dict[str, Any] | None = None
+
         print(f"Found {len(experiments) - 1} parameter-factor experiment(s).")
         for experiment in experiments:
             print(f"\nAnalyzing: {experiment.name}")
@@ -968,11 +1167,7 @@ class BatchExperimentAnalyzer:
                 message = f"FAILED: {experiment.directory}: {error}"
                 if experiment.is_baseline:
                     raise RuntimeError(f"Could not analyze baseline. {message}") from error
-                failures.append({
-                    "experiment": experiment.name,
-                    "directory": str(experiment.directory),
-                    "error": str(error),
-                })
+                failures.append({"experiment": experiment.name, "directory": str(experiment.directory), "error": str(error)})
                 print(message, file=sys.stderr)
 
         if baseline_row is None:
@@ -984,45 +1179,39 @@ class BatchExperimentAnalyzer:
                 "Baseline EKF horizontal RMSE could not be calculated. Check that "
                 "position measurements, EKF data, and SIMSTATE have overlapping timestamps."
             )
+
         for row in rows:
-            run_ekf_rmse = float(row["ekf_horizontal_rmse_m"])
-            run_gps_rmse = float(row["measurement_horizontal_rmse_m"])
+            ekf_rmse = float(row["ekf_horizontal_rmse_m"])
+            external_rmse = float(row["measurement_horizontal_rmse_m"])
             row["improvement_vs_baseline_pct"] = (
-                (baseline_rmse - run_ekf_rmse) / baseline_rmse * 100.0
-                if np.isfinite(baseline_rmse) and baseline_rmse > 0 and np.isfinite(run_ekf_rmse)
-                else np.nan
+                (baseline_rmse - ekf_rmse) / baseline_rmse * 100
+                if baseline_rmse > 0 and np.isfinite(ekf_rmse) else np.nan
             )
             row["improvement_vs_gps_pct"] = (
-                (run_gps_rmse - run_ekf_rmse) / run_gps_rmse * 100.0
-                if np.isfinite(run_gps_rmse) and run_gps_rmse > 0 and np.isfinite(run_ekf_rmse)
+                (external_rmse - ekf_rmse) / external_rmse * 100
+                if external_rmse > 0 and np.isfinite(external_rmse) and np.isfinite(ekf_rmse)
                 else np.nan
             )
 
-        results = pd.DataFrame(rows)
-        results = results.sort_values(
+        results = pd.DataFrame(rows).sort_values(
             by=["is_baseline", "parameter", "factor"],
-            ascending=[False, True, True],
-            na_position="last",
+            ascending=[False, True, True], na_position="last",
         ).reset_index(drop=True)
+        results.to_csv(root / "comparison.csv", index=False, float_format="%.8g")
+        self._write_markdown_summary(results, root / "comparison.md")
 
-        comparison_csv = root / "comparison.csv"
-        comparison_markdown = root / "comparison.md"
-        results.to_csv(comparison_csv, index=False, float_format="%.8g")
-        self._write_markdown_summary(results, comparison_markdown)
         skipped_csv = root / "skipped_experiments.csv"
         if failures:
             pd.DataFrame(failures).to_csv(skipped_csv, index=False)
         elif skipped_csv.exists():
             skipped_csv.unlink()
-        comparison_plot_directory = root / "comparison_plots"
-        self._generate_comparison_plots(
-            results, error_arrays, comparison_plot_directory, baseline_rmse,
-        )
 
+        plot_directory = root / "comparison_plots"
+        self._generate_comparison_plots(results, error_arrays, plot_directory)
         print("\nBatch analysis complete.")
-        print(f"  Summary CSV:      {comparison_csv}")
-        print(f"  Summary Markdown: {comparison_markdown}")
-        print(f"  Comparison plots: {comparison_plot_directory}")
+        print(f"  Summary CSV:      {root / 'comparison.csv'}")
+        print(f"  Summary Markdown: {root / 'comparison.md'}")
+        print(f"  Comparison plots: {plot_directory}")
         if failures:
             print(f"  Skipped experiments: {skipped_csv} ({len(failures)} failed)")
         return results
