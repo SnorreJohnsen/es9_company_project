@@ -1,7 +1,7 @@
 """Plot and compare external position measurements, ArduPilot EKF, and SITL truth.
 
-Batch mode also calculates horizontal RMSE bias/std contributions and along-track
-error metrics, then plots their sensitivity to each experiment parameter.
+Batch mode calculates horizontal RMSE bias/std contributions and low-/high-frequency
+position-error metrics, then plots their sensitivity to each experiment parameter.
 """
 
 from __future__ import annotations
@@ -18,6 +18,7 @@ from typing import Any
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from scipy.signal import butter, sosfiltfilt
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
@@ -158,6 +159,260 @@ class EKFPlotter:
         fig.suptitle("Position and EKF errors relative to SIMSTATE truth")
         fig.tight_layout()
         self._save_figure(fig, "errors_vs_time.png")
+        return fig, axes
+
+    def filter_ekf_position_errors(
+        self,
+        aligned: pd.DataFrame,
+    ) -> tuple[pd.DataFrame, float, int]:
+        """Split EKF position error into low-frequency and residual components.
+
+        The error samples are first mapped onto a uniform time grid because
+        Butterworth digital filters require a uniform sampling interval. Short
+        or discontinuous valid sections are filtered independently. Gaps are
+        not bridged.
+
+        Returns the aligned frame with four filtered-error columns, the nominal
+        sample rate in Hz, and the number of successfully filtered segments.
+        """
+        cutoff_hz = float(self.config.lowpass_cutoff_hz)
+        filter_order = 4
+
+        if not np.isfinite(cutoff_hz) or cutoff_hz <= 0:
+            raise ValueError("lowpass_cutoff_hz must be a positive finite value")
+
+        required = (
+            "host_time_ns",
+            "ekf_north_error_m",
+            "ekf_east_error_m",
+        )
+        missing = [column for column in required if column not in aligned.columns]
+        if missing:
+            raise RuntimeError(
+                "Cannot low-pass filter EKF errors; missing columns: "
+                + ", ".join(missing)
+            )
+
+        result = aligned.copy()
+        output_columns = (
+            "ekf_low_frequency_north_error_m",
+            "ekf_low_frequency_east_error_m",
+            "ekf_high_frequency_north_error_m",
+            "ekf_high_frequency_east_error_m",
+        )
+        for column in output_columns:
+            result[column] = np.nan
+
+        timestamp_values = pd.to_numeric(
+            result["host_time_ns"], errors="coerce"
+        )
+        finite_time = timestamp_values.notna().to_numpy()
+        # Preserve nanosecond timestamp precision by keeping int64 values.
+        times_ns = timestamp_values.fillna(0).to_numpy(dtype=np.int64)
+        north = pd.to_numeric(
+            result["ekf_north_error_m"], errors="coerce"
+        ).to_numpy(dtype=float)
+        east = pd.to_numeric(
+            result["ekf_east_error_m"], errors="coerce"
+        ).to_numpy(dtype=float)
+
+        if finite_time.sum() < 3:
+            return result, np.nan, 0
+
+        # Sort for filtering but retain original row indices for the output.
+        original_order = np.flatnonzero(finite_time)
+        original_order = original_order[np.argsort(times_ns[original_order], kind="stable")]
+        sorted_times_ns = times_ns[original_order].astype(np.int64)
+
+        # Keep one sample per timestamp. Duplicate timestamps cannot be used
+        # as distinct time points by a digital filter.
+        unique = np.r_[True, np.diff(sorted_times_ns) > 0]
+        original_order = original_order[unique]
+        sorted_times_ns = sorted_times_ns[unique]
+        if len(sorted_times_ns) < 3:
+            return result, np.nan, 0
+
+        time_s = (sorted_times_ns - sorted_times_ns[0]).astype(float) / 1_000_000_000.0
+        positive_intervals = np.diff(time_s)
+        positive_intervals = positive_intervals[positive_intervals > 0]
+        if positive_intervals.size == 0:
+            return result, np.nan, 0
+
+        nominal_dt = float(np.median(positive_intervals))
+        sample_rate_hz = 1.0 / nominal_dt
+        nyquist_hz = sample_rate_hz / 2.0
+        if cutoff_hz >= nyquist_hz:
+            raise ValueError(
+                f"lowpass_cutoff_hz ({cutoff_hz:g} Hz) must be below the "
+                f"Nyquist frequency ({nyquist_hz:g} Hz). The aligned sample "
+                f"rate is approximately {sample_rate_hz:g} Hz."
+            )
+
+        north_sorted = north[original_order]
+        east_sorted = east[original_order]
+        valid = np.isfinite(north_sorted) & np.isfinite(east_sorted)
+        valid_indices = np.flatnonzero(valid)
+        if valid_indices.size == 0:
+            return result, sample_rate_hz, 0
+
+        # Split at missing samples or large time gaps so the filter does not
+        # interpolate across periods without valid aligned data.
+        valid_time = time_s[valid_indices]
+        breaks = np.flatnonzero(np.diff(valid_time) > 1.5 * nominal_dt) + 1
+        valid_runs = np.split(valid_indices, breaks)
+
+        low_north_out = np.full(len(result), np.nan, dtype=float)
+        low_east_out = np.full(len(result), np.nan, dtype=float)
+        high_north_out = np.full(len(result), np.nan, dtype=float)
+        high_east_out = np.full(len(result), np.nan, dtype=float)
+        filtered_segments = 0
+
+        for run in valid_runs:
+            if len(run) < 16:
+                continue
+
+            run_times = time_s[run]
+            duration_s = float(run_times[-1] - run_times[0])
+            if duration_s <= 0:
+                continue
+
+            # Resample this continuous run onto an evenly spaced grid.
+            uniform_count = int(round(duration_s / nominal_dt)) + 1
+            if uniform_count < 16:
+                continue
+            uniform_times = np.linspace(run_times[0], run_times[-1], uniform_count)
+            uniform_dt = float(np.median(np.diff(uniform_times)))
+            run_sample_rate_hz = 1.0 / uniform_dt
+            if cutoff_hz >= run_sample_rate_hz / 2.0:
+                continue
+
+            # Require at least about three cutoff periods so the filter is
+            # not dominated by its boundary behaviour on very short runs.
+            minimum_samples = max(
+                16,
+                int(np.ceil(3.0 * run_sample_rate_hz / cutoff_hz)),
+            )
+            if uniform_count < minimum_samples:
+                continue
+
+            sos = butter(
+                filter_order,
+                cutoff_hz,
+                btype="lowpass",
+                fs=run_sample_rate_hz,
+                output="sos",
+            )
+
+            north_uniform = np.interp(
+                uniform_times, run_times, north_sorted[run]
+            )
+            east_uniform = np.interp(
+                uniform_times, run_times, east_sorted[run]
+            )
+
+            try:
+                low_north_uniform = sosfiltfilt(sos, north_uniform)
+                low_east_uniform = sosfiltfilt(sos, east_uniform)
+            except ValueError:
+                # sosfiltfilt requires more samples than its padding length.
+                continue
+
+            high_north_uniform = north_uniform - low_north_uniform
+            high_east_uniform = east_uniform - low_east_uniform
+
+            # Map filtered components back to the original aligned timestamps.
+            original_rows = original_order[run]
+            low_north_out[original_rows] = np.interp(
+                run_times, uniform_times, low_north_uniform
+            )
+            low_east_out[original_rows] = np.interp(
+                run_times, uniform_times, low_east_uniform
+            )
+            high_north_out[original_rows] = np.interp(
+                run_times, uniform_times, high_north_uniform
+            )
+            high_east_out[original_rows] = np.interp(
+                run_times, uniform_times, high_east_uniform
+            )
+            filtered_segments += 1
+
+        result[output_columns[0]] = low_north_out
+        result[output_columns[1]] = low_east_out
+        result[output_columns[2]] = high_north_out
+        result[output_columns[3]] = high_east_out
+        return result, sample_rate_hz, filtered_segments
+
+    def filtered_errors_vs_time(
+        self,
+        filtered: pd.DataFrame | None = None,
+        sample_rate_hz: float | None = None,
+    ) -> tuple[Figure, np.ndarray]:
+        """Plot original, low-frequency, and residual EKF errors over time."""
+        if filtered is None:
+            aligned = self._align_to_position_timeline()
+            filtered, sample_rate_hz, _ = self.filter_ekf_position_errors(aligned)
+        elif "ekf_low_frequency_north_error_m" not in filtered.columns:
+            filtered, sample_rate_hz, _ = self.filter_ekf_position_errors(filtered)
+
+        if sample_rate_hz is None:
+            time_ns = pd.to_numeric(
+                filtered["host_time_ns"], errors="coerce"
+            ).dropna().to_numpy(dtype=np.int64)
+            intervals = np.diff(np.unique(time_ns))
+            intervals = intervals[intervals > 0]
+            sample_rate_hz = (
+                1.0 / (float(np.median(intervals)) / 1_000_000_000.0)
+                if intervals.size else np.nan
+            )
+
+        fig, axes = plt.subplots(
+            2, 1,
+            figsize=(self.config.figure_width, self.config.figure_height * 0.8),
+            sharex=True,
+        )
+        time_s = self._time_seconds(self._series(filtered, "host_time_ns"))
+        panels = (
+            (
+                "north",
+                "North error (m)",
+                "ekf_north_error_m",
+                "ekf_low_frequency_north_error_m",
+                "ekf_high_frequency_north_error_m",
+            ),
+            (
+                "east",
+                "East error (m)",
+                "ekf_east_error_m",
+                "ekf_low_frequency_east_error_m",
+                "ekf_high_frequency_east_error_m",
+            ),
+        )
+        cutoff_hz = float(self.config.lowpass_cutoff_hz)
+
+        for axis, (_, label, original_col, low_col, high_col) in zip(axes, panels):
+            axis.plot(
+                time_s, filtered[original_col],
+                alpha=0.45, label="Original EKF error",
+            )
+            axis.plot(
+                time_s, filtered[low_col],
+                linewidth=2, label=f"Low-frequency component ({cutoff_hz:g} Hz)",
+            )
+            axis.plot(
+                time_s, filtered[high_col],
+                alpha=0.8, label="High-frequency residual",
+            )
+            axis.set_ylabel(label)
+            axis.grid(True, alpha=0.3)
+            axis.legend()
+
+        axes[-1].set_xlabel("Time since first external measurement (s)")
+        fig.suptitle(
+            "EKF position-error low-pass decomposition "
+            f"(sample rate ≈ {sample_rate_hz:.2f} Hz)"
+        )
+        fig.tight_layout()
+        self._save_figure(fig, "filtered_errors_vs_time.png")
         return fig, axes
 
     def topdown_trajectory(self) -> tuple[Figure, Axes]:
@@ -811,70 +1066,62 @@ class BatchExperimentAnalyzer:
         }
 
     @staticmethod
-    def _calculate_along_track_metrics(
-        aligned: pd.DataFrame,
-        prefix: str = "ekf",
+    def _calculate_lowpass_error_metrics(
+        filtered: pd.DataFrame,
+        sample_rate_hz: float,
+        filtered_segments: int,
+        cutoff_hz: float,
     ) -> dict[str, float | int]:
-        """Project position error onto the SIMSTATE direction of travel.
+        """Summarise the low-frequency EKF error and high-frequency residual."""
+        low_north = pd.to_numeric(
+            filtered.get("ekf_low_frequency_north_error_m", pd.Series(dtype=float)),
+            errors="coerce",
+        ).to_numpy(dtype=float)
+        low_east = pd.to_numeric(
+            filtered.get("ekf_low_frequency_east_error_m", pd.Series(dtype=float)),
+            errors="coerce",
+        ).to_numpy(dtype=float)
+        high_north = pd.to_numeric(
+            filtered.get("ekf_high_frequency_north_error_m", pd.Series(dtype=float)),
+            errors="coerce",
+        ).to_numpy(dtype=float)
+        high_east = pd.to_numeric(
+            filtered.get("ekf_high_frequency_east_error_m", pd.Series(dtype=float)),
+            errors="coerce",
+        ).to_numpy(dtype=float)
 
-        A negative signed mean indicates the estimate is behind the truth
-        relative to the current direction of motion.
-        """
-        empty = {
-            f"{prefix}_along_track_samples": 0,
-            f"{prefix}_along_track_rmse_m": np.nan,
-            f"{prefix}_along_track_bias_m": np.nan,
-            f"{prefix}_along_track_mean_error_m": np.nan,
-            f"{prefix}_along_track_std_m": np.nan,
-        }
-        required = [
-            "host_time_ns", "truth_north_m", "truth_east_m",
-            f"{prefix}_north_m", f"{prefix}_east_m",
-        ]
-        if not set(required).issubset(aligned.columns):
-            return empty
-
-        samples = aligned[required].apply(pd.to_numeric, errors="coerce").dropna()
-        samples = samples.sort_values("host_time_ns").drop_duplicates(
-            "host_time_ns", keep="last",
+        valid = (
+            np.isfinite(low_north)
+            & np.isfinite(low_east)
+            & np.isfinite(high_north)
+            & np.isfinite(high_east)
         )
-        if len(samples) < 3:
-            return empty
+        low_north = low_north[valid]
+        low_east = low_east[valid]
+        high_north = high_north[valid]
+        high_east = high_east[valid]
 
-        # Subtract integer timestamps before converting to seconds to retain
-        # precision with nanosecond timestamps.
-        time_ns = samples["host_time_ns"].to_numpy(dtype=np.int64)
-        time_s = (time_ns - time_ns[0]).astype(float) / 1_000_000_000.0
-        truth_n = samples["truth_north_m"].to_numpy(dtype=float)
-        truth_e = samples["truth_east_m"].to_numpy(dtype=float)
-        error_n = samples[f"{prefix}_north_m"].to_numpy(dtype=float) - truth_n
-        error_e = samples[f"{prefix}_east_m"].to_numpy(dtype=float) - truth_e
+        if low_north.size == 0:
+            low_frequency_rmse = np.nan
+            high_frequency_std = np.nan
+        else:
+            low_frequency_rmse = float(
+                np.sqrt(np.mean(low_north**2 + low_east**2))
+            )
+            high_frequency_std = float(
+                np.hypot(
+                    np.std(high_north, ddof=0),
+                    np.std(high_east, ddof=0),
+                )
+            )
 
-        velocity_n = np.gradient(truth_n, time_s)
-        velocity_e = np.gradient(truth_e, time_s)
-        speed = np.hypot(velocity_n, velocity_e)
-
-        # Ignore near-stationary samples, where the direction of travel is
-        # poorly defined. Adjust 0.2 m/s here if your simulation needs it.
-        moving = np.isfinite(speed) & (speed >= 0.2)
-        if not moving.any():
-            return empty
-
-        along_error = (
-            error_n[moving] * velocity_n[moving]
-            + error_e[moving] * velocity_e[moving]
-        ) / speed[moving]
-        along_error = along_error[np.isfinite(along_error)]
-        if along_error.size == 0:
-            return empty
-
-        mean_error = float(np.mean(along_error))
         return {
-            f"{prefix}_along_track_samples": int(along_error.size),
-            f"{prefix}_along_track_rmse_m": float(np.sqrt(np.mean(along_error ** 2))),
-            f"{prefix}_along_track_bias_m": abs(mean_error),
-            f"{prefix}_along_track_mean_error_m": mean_error,
-            f"{prefix}_along_track_std_m": float(np.std(along_error, ddof=0)),
+            "ekf_low_frequency_error_rmse_m": low_frequency_rmse,
+            "ekf_high_frequency_residual_std_m": high_frequency_std,
+            "ekf_lowpass_samples": int(low_north.size),
+            "ekf_lowpass_segments": int(filtered_segments),
+            "ekf_lowpass_sampling_frequency_hz": float(sample_rate_hz),
+            "ekf_lowpass_cutoff_hz": float(cutoff_hz),
         }
 
     def _analyze_one(
@@ -898,6 +1145,13 @@ class BatchExperimentAnalyzer:
             plotter.error_distributions()
 
         aligned = plotter._align_to_position_timeline()
+        filtered_aligned, sample_rate_hz, filtered_segments = (
+            plotter.filter_ekf_position_errors(aligned)
+        )
+        if generate_plots:
+            plotter.filtered_errors_vs_time(filtered_aligned, sample_rate_hz)
+
+        cutoff_hz = float(self.plot_config.lowpass_cutoff_hz)
         row: dict[str, Any] = {
             "experiment": experiment.name,
             "parameter": experiment.parameter_name,
@@ -907,7 +1161,9 @@ class BatchExperimentAnalyzer:
             "directory": str(experiment.directory),
             **self._calculate_error_metrics(aligned, "measurement"),
             **self._calculate_error_metrics(aligned, "ekf"),
-            **self._calculate_along_track_metrics(aligned, "ekf"),
+            **self._calculate_lowpass_error_metrics(
+                filtered_aligned, sample_rate_hz, filtered_segments, cutoff_hz,
+            ),
         }
 
         metadata = self._read_metadata(experiment.directory)
@@ -929,10 +1185,12 @@ class BatchExperimentAnalyzer:
             "ekf_horizontal_rmse_m",
             "ekf_horizontal_bias_rmse_m",
             "ekf_horizontal_std_rmse_m",
-            "ekf_along_track_rmse_m",
-            "ekf_along_track_bias_m",
-            "ekf_along_track_std_m",
-            "ekf_along_track_mean_error_m",
+            "ekf_low_frequency_error_rmse_m",
+            "ekf_high_frequency_residual_std_m",
+            "ekf_lowpass_cutoff_hz",
+            "ekf_lowpass_sampling_frequency_hz",
+            "ekf_lowpass_samples",
+            "ekf_lowpass_segments",
             "improvement_vs_baseline_pct",
             "improvement_vs_gps_pct",
             "ekf_horizontal_p95_m", "ekf_horizontal_max_m", "ekf_samples",
@@ -940,8 +1198,9 @@ class BatchExperimentAnalyzer:
         headings = [
             "Parameter", "Factor", "External RMSE (m)", "EKF RMSE (m)",
             "EKF bias RMSE (m)", "EKF std RMSE (m)",
-            "Along-track RMSE (m)", "Along-track bias (m)",
-            "Along-track std (m)", "Signed along-track mean (m)",
+            "Low-frequency error RMSE (m)", "High-frequency residual std (m)",
+            "Low-pass cutoff (Hz)", "Filter sample rate (Hz)",
+            "Filter samples", "Filter segments",
             "vs baseline (%)", "vs external (%)", "EKF P95 (m)",
             "EKF max (m)", "Samples",
         ]
@@ -963,7 +1222,7 @@ class BatchExperimentAnalyzer:
                     values.append(f"{float(value):.1f}")
                 elif column in {"parameter", "factor_label"}:
                     values.append(str(value))
-                elif column.endswith("_samples"):
+                elif column.endswith("_samples") or column.endswith("_segments"):
                     values.append(str(int(value)))
                 else:
                     values.append(f"{float(value):.3f}")
@@ -975,10 +1234,10 @@ class BatchExperimentAnalyzer:
             "- **Horizontal bias RMSE:** magnitude of the mean North/East error vector.",
             "- **Horizontal std RMSE:** root-sum-square of the North and East population standard deviations.",
             "- **Decomposition:** total RMSE squared = bias RMSE squared + std RMSE squared.",
-            "- **Along-track error:** EKF-minus-truth position error projected onto the SIMSTATE direction of travel.",
-            "- **Along-track bias:** absolute mean signed along-track error; a negative signed mean indicates the EKF is behind the truth on average.",
-            "- **Along-track std:** population standard deviation of the signed along-track error.",
-            "- Along-track metrics ignore samples where SIMSTATE speed is below 0.2 m/s.",
+            "- **Low-frequency error RMSE:** RMSE magnitude of the low-pass-filtered North/East EKF error components.",
+            "- **High-frequency residual std:** root-sum-square of the population standard deviations of the residual North/East components (original error minus low-frequency component).",
+            "- The low-pass filter is a fourth-order Butterworth filter applied with zero-phase forward/backward filtering. Errors are resampled to a uniform time grid for filtering; gaps are filtered as separate segments.",
+            "- The low-frequency RMSE and high-frequency residual std are frequency-based descriptors, not an exact RMSE decomposition; they do not necessarily add in quadrature to total RMSE.",
             "- **P95 / max:** 95th percentile and maximum horizontal error magnitude.",
             "",
         ])
@@ -990,7 +1249,7 @@ class BatchExperimentAnalyzer:
         error_arrays: dict[str, np.ndarray],
         output_directory: Path,
     ) -> None:
-        """Create the existing ranking/boxplot plus two separate decompositions."""
+        """Create improvement ranking, horizontal-error boxplot, horizontal decomposition, and filtered-error sensitivity plots."""
         output_directory.mkdir(parents=True, exist_ok=True)
         non_baseline = results.loc[~results["is_baseline"]].copy()
 
@@ -1109,14 +1368,13 @@ class BatchExperimentAnalyzer:
             )
             plt.close(fig)
 
-            # Figure 2: along-track position RMSE decomposition.
-            along_track_metrics = [
-                ("ekf_along_track_rmse_m", "Along-track RMSE", "-"),
-                ("ekf_along_track_bias_m", "Along-track bias", "--"),
-                ("ekf_along_track_std_m", "Along-track std", ":"),
+            # Figure 2: low-frequency error and high-frequency residual.
+            lowpass_metrics = [
+                ("ekf_low_frequency_error_rmse_m", "Low-frequency error RMSE", "-"),
+                ("ekf_high_frequency_residual_std_m", "High-frequency residual std", "--"),
             ]
             fig, axis = plt.subplots(figsize=(9, 5.5))
-            for column, label, linestyle in along_track_metrics:
+            for column, label, linestyle in lowpass_metrics:
                 if column not in data.columns:
                     continue
                 y = pd.to_numeric(data[column], errors="coerce").to_numpy(dtype=float)
@@ -1127,17 +1385,25 @@ class BatchExperimentAnalyzer:
                         linestyle=linestyle, label=label,
                     )
             axis.axvline(
-                1.0, color="gray", linestyle="--", alpha=0.6,
+                1.0, color="gray", linestyle=":", alpha=0.6,
                 label="Baseline (1.0x)",
             )
             axis.set_xlabel(xlabel)
-            axis.set_ylabel("Along-track error (m)")
-            axis.set_title(f"Along-track RMSE decomposition: {parameter}")
+            axis.set_ylabel("Position error (m)")
+            cutoff_values = pd.to_numeric(
+                data.get("ekf_lowpass_cutoff_hz", pd.Series(dtype=float)),
+                errors="coerce",
+            ).dropna()
+            cutoff_label = (
+                f" (cutoff {float(cutoff_values.iloc[0]):g} Hz)"
+                if not cutoff_values.empty else ""
+            )
+            axis.set_title(f"Low-/high-frequency EKF error: {parameter}{cutoff_label}")
             axis.grid(True, alpha=0.3)
             axis.legend()
             fig.tight_layout()
             fig.savefig(
-                output_directory / f"along_track_rmse_decomposition_{safe_parameter}.png",
+                output_directory / f"lowpass_error_decomposition_{safe_parameter}.png",
                 dpi=150, bbox_inches="tight",
             )
             plt.close(fig)
@@ -1280,6 +1546,7 @@ def main(argv: list[str] | None = None) -> None:
     if position is not None and not position.empty and plotter.sitl_simstate is not None:
         plotter.errors_vs_time()
         plotter.error_distributions()
+        plotter.filtered_errors_vs_time()
     else:
         print("Skipping error plots: external measurements and SIMSTATE are required.")
 

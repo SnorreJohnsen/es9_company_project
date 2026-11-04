@@ -61,6 +61,8 @@ class SitlSimulationConfig:
 
 @dataclass
 class SitlEkfPlotterConfig:
+    lowpass_cutoff_hz: float = 0.1
+
     output_directory: str = "visualization/figures/sitl_ekf/"
     sync_tolerance_ms: float | None = 100.0
     include_invalid_measurements: bool = False
