@@ -51,7 +51,7 @@ class SitlLoggerConfig:
 
 @dataclass
 class SitlSimulationConfig:
-    duration_s: float | None = None # None: stop simulation with ctrl+C
+    duration_s: float | None = 130 # None: stop simulation with ctrl+C
 
     horizontal_noise_std_m: float = 0.05
     vertical_noise_std_m: float = 0.05
