@@ -143,6 +143,7 @@ class GeographicToNedTransformer:
                                    std_z=measurement.std_vertical_m
                                    )
 
+#NOT USED
 class SitlGeographicToNedTransformer:
     def __init__(self):
         # initial fixed origin
