@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 
 
-# Simulator
+############################# Simulator ####################################
 @dataclass
 class CircleConfig:
     radius: float = 5.0
@@ -34,7 +34,7 @@ class SimulatorConfig:
                                          LineConfig # change here for trajectory
                                          )
 
-# Ardupilot SITL
+########################## Ardupilot SITL ##########################
 @dataclass
 class SitlProviderConfig:
     connection_string: str = "udpin:127.0.0.1:14551"
@@ -72,7 +72,26 @@ class SitlEkfPlotterConfig:
     dpi: int = 150
     histogram_bins: int | str = "auto"
 
-# shared
+######################### bitcraze twr loco #############################
+@dataclass(frozen=True)
+class BitcrazeLocoTwrProviderConfig:
+    port: str = "" # fx. "/dev/ttyACM0"
+    baudrate: int = 115200 # not needed for USB CDC
+    anchor_ids: tuple[int, ...] = tuple(range(8))
+    serial_timeout_s: float = 0.10
+    max_range_set_span_s: float = 0.50
+
+    def __post_init__(self) -> None:
+        if not self.port:
+            raise ValueError("Serial port required, fx. /dev/ttyACM0")
+        if not self.anchor_ids:
+            raise ValueError("At least one anchor id required")
+        if len(set(self.anchor_ids)) != len(self.anchor_ids):
+            raise ValueError("anchor_ids must be unique")
+        if any(anchor_id < 0 or anchor_id > 7 for anchor_id in self.anchor_ids):
+            raise ValueError("Anchor ids must be range 0 to 7")
+
+######################### shared ########################################
 @dataclass
 class PositionMeasurementLoggerConfig:
     output_path: str = "uwb_positioning/csv_logging/logs/position_measurement.csv"
@@ -116,6 +135,8 @@ class MavlinkConfig:
     send_rate_hz: float = 10.0
     enabled: bool = True
 
+
+##################################### loaders #############################################
 @dataclass
 class ArdupilotSitlAppConfig:
     provider: SitlProviderConfig

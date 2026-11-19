@@ -29,6 +29,7 @@
                 pydantic
                 pytest
                 pymavlink
+                pyserial
               ]
             ))
           ];

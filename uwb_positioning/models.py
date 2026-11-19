@@ -28,3 +28,26 @@ class PositionMeasurement:
 
     valid: bool = True
     rejection_reason: str | None = None
+
+@dataclass(frozen=True)
+class RangeMeasurement:
+    timestamp_us: int
+
+    anchor_id: int
+    distance_m: float
+
+    std_m: float | None = None
+
+@dataclass(frozen=True)
+class RangeSetMeasurement:
+    timestamp_us: int # should represent the mid of the group time range.
+    ranges: dict[int, RangeMeasurement]
+
+    def __post_init__(self) -> None:
+        if not self.ranges:
+            raise ValueError("RangeSetMeasuremnt must contaion at least one range")
+        for anchor_id, measurement in self.ranges.items():
+            if anchor_id != measurement.anchor_id:
+                raise ValueError(f"Range key {anchor_id} do not match measurement anchor_id ",
+                                 f"{measurement.anchor_id}"
+                                 )
