@@ -29,7 +29,7 @@ class PositionMeasurement:
     valid: bool = True
     rejection_reason: str | None = None
 
-@dataclass(frozen=True)
+@dataclass
 class RangeMeasurement:
     timestamp_us: int
 
@@ -38,7 +38,7 @@ class RangeMeasurement:
 
     std_m: float | None = None
 
-@dataclass(frozen=True)
+@dataclass
 class RangeSetMeasurement:
     timestamp_us: int # should represent the mid of the group time range.
     ranges: dict[int, RangeMeasurement]

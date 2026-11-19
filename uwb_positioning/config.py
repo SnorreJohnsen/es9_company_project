@@ -73,7 +73,7 @@ class SitlEkfPlotterConfig:
     histogram_bins: int | str = "auto"
 
 ######################### bitcraze twr loco #############################
-@dataclass(frozen=True)
+@dataclass
 class BitcrazeLocoTwrProviderConfig:
     port: str = "" # fx. "/dev/ttyACM0"
     baudrate: int = 115200 # not needed for USB CDC
