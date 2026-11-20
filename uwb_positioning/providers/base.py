@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from uwb_positioning.models import PositionMeasurement, GeographicMeasurement
+from uwb_positioning.models import PositionMeasurement, GeographicMeasurement, RangeSetMeasurement
 
 
 class PositionProvider(ABC):
