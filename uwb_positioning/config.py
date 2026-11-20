@@ -91,6 +91,27 @@ class BitcrazeLocoTwrProviderConfig:
         if any(anchor_id < 0 or anchor_id > 7 for anchor_id in self.anchor_ids):
             raise ValueError("Anchor ids must be range 0 to 7")
 
+@dataclass
+class TrilaterationConfig:
+    # anchors in FLU coordinates in meters
+    anchors: dict[int, tuple[float, float, float]] = field(default_factory=lambda: {
+        0: (-3.0, -2.0, 0.0),
+        1: (3.0, -2.0, 0.0),
+        2: (3.0, 2.0, 0.0),
+        3: (-3.0, 2.0, 0.0),
+        4: (-3.0, -2.0, 3.0),
+        5: (3.0, -2.0, 3.0),
+        6: (3.0, 2.0, 3.0),
+        7: (-3.0, 2.0, 3.0),
+        })
+    minimum_anchors: int = 6
+    max_nfev: int = 60
+
+    loss: str = "soft_l1"
+    loss_scale_m: float = 0.10 # residual scale in meters. controls when to reduce outlier influence
+
+    max_residual_rms_m: float | None = None # max accepted rms distance error
+
 ######################### shared ########################################
 @dataclass
 class PositionMeasurementLoggerConfig:

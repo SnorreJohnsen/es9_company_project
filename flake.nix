@@ -30,6 +30,7 @@
                 pytest
                 pymavlink
                 pyserial
+                scipy
               ]
             ))
           ];
