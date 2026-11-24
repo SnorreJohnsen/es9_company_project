@@ -173,7 +173,8 @@ class ArdupilotSitlAppConfig:
 @dataclass
 class SimulatorAppConfig:
     provider: SimulatorConfig
-    transform: LocalTransformConfig
+    geographic_transformer: GeographicTransformConfig
+    local_transformer: LocalTransformConfig
     validator: ValidationConfig
     mavlink: MavlinkConfig
 
@@ -190,7 +191,8 @@ def load_ardupilot_sitl_config() -> ArdupilotSitlAppConfig:
 
 def load_simulator_config() -> SimulatorAppConfig:
     return SimulatorAppConfig(provider=SimulatorConfig(), 
-                              transform=LocalTransformConfig(), 
+                              geographic_transformer=GeographicTransformConfig(),
+                              local_transformer=LocalTransformConfig(),
                               validator=ValidationConfig(), 
                               mavlink=MavlinkConfig(),
                               )
