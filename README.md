@@ -8,6 +8,9 @@ python packages
 - `pymavlink`
 - `numpy`
 - `pandas`
+- `pyserial`
+
+Which can be installed from the `requirements.txt` file.
 
 
 ## Usage
