@@ -42,7 +42,7 @@ def main() -> None:
     validator = MeasurementValidator(config.validator)
 
     mavlink_connection = MavlinkConnection(config.mavlink)
-    odometry_output = GpsInputOutput(mavlink_connection)
+    gps_output = GpsInputOutput(mavlink_connection)
 
     sitl_logger = SitlLogger(config.sitl_logger)
     position_measurement_logger = PositionMeasurementLogger(config.position_measurement_logger)
@@ -95,7 +95,7 @@ def main() -> None:
 
                         transformed_geographic_measurement = ned_to_geographic.transform(validated_measurement)
                         position_measurement_logger.log(validated_measurement)
-                        odometry_output.send(transformed_geographic_measurement)
+                        gps_output.send(transformed_geographic_measurement)
                     else:
                         print("Measurement rejected: ",
                               f"{validated_measurement.rejection_reason}",
