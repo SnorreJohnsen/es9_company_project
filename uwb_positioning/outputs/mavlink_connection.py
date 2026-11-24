@@ -20,6 +20,7 @@ class MavlinkConnection:
 
         self.connection = cast(mavutil.mavfile, # use cast to tell pyright what to expect since mavfile can return multiple types
                 mavutil.mavlink_connection(device=self.config.connection_string, 
+                                           baud=self.config.baudrate,
                                            source_system=self.config.source_system, 
                                            source_component=self.config.source_component,
                                            )

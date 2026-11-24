@@ -31,7 +31,7 @@ class SimulatorConfig:
     random_seed: int | None = 42
 
     trajectory: TrajectoryConfig = field(default_factory=
-                                         LineConfig # change here for trajectory
+                                         CircleConfig # change here for trajectory
                                          )
 
 ########################## Ardupilot SITL ##########################
@@ -150,7 +150,8 @@ class ValidationConfig:
 
 @dataclass
 class MavlinkConfig:
-    connection_string: str = "udpin:127.0.0.1:14550"
+    connection_string: str = "/dev/ttyACM0"
+    baudrate: int = 115200
     source_system: int = 200
     source_component: int = 191 # MAV_COMP_ID_ONBOARD_COMPUTER
 
