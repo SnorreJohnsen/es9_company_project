@@ -29,8 +29,7 @@ class ArduPilotSitlProvider(PositionProvider):
 
         heartbeat = self.connection.wait_heartbeat(timeout=10)
         if heartbeat is None:
-            self.connection.close()
-            self.connection = None
+            self.disconnect()
             raise TimeoutError("No heartbeat received from ArduPilot SITL")
 
         self._set_message_rate(mavutil.mavlink.MAVLINK_MSG_ID_GPS2_RAW,
