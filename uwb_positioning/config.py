@@ -150,7 +150,7 @@ class ValidationConfig:
 
 @dataclass
 class MavlinkConfig:
-    connection_string: str = "/dev/ttyACM0"
+    connection_string: str = "/dev/serial0" # uart: /dev/serial0, usb: /dev/ttyACM0, sitlmavlink: udpin:127.0.0.1:14551
     baudrate: int = 115200
     source_system: int = 200
     source_component: int = 191 # MAV_COMP_ID_ONBOARD_COMPUTER
