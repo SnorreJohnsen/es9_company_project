@@ -14,6 +14,10 @@ def parse_arduments() -> argparse.Namespace:
     parser.add_argument("filename",
                         help="Path to GPS CSV log file",
                         )
+    parser.add_argument("--geo",
+                        action="store_true",
+                        help="Plot in geographical coordinates",
+                        )
     return parser.parse_args()
 
 def extract_geographic_measurements(df: pd.DataFrame) -> list[GeographicMeasurement]:
@@ -44,10 +48,7 @@ def convert_geo_measurements_to_ned(geo_measurements: list[GeographicMeasurement
     
     return ned_measurements
 
-def main() -> None:
-    args = parse_arduments()
-
-    df = pd.read_csv(args.filename)
+def plot_ned(df: pd.DataFrame) -> None:
 
     geo_measurements = extract_geographic_measurements(df)
     ned_measurements = convert_geo_measurements_to_ned(geo_measurements)
@@ -65,6 +66,30 @@ def main() -> None:
     plt.axis("equal")
     plt.grid()
     plt.show()
+
+def plot_geo(df: pd.DataFrame) -> None:
+
+    plt.figure(figsize=(12, 7))
+
+    plt.plot(df["Lng"], df["Lat"], marker=".", markersize=3)
+
+    plt.xlabel("Longitude [degrees]")
+    plt.ylabel("Latitude [degrees]")
+    plt.title("CubePilot GPS trajectory (GEO)")
+    plt.axis("equal")
+    plt.grid()
+    plt.show()
+
+def main() -> None:
+    args = parse_arduments()
+
+    df = pd.read_csv(args.filename)
+
+    if args.geo:
+        plot_geo(df)
+    else:
+        plot_ned(df)
+
 
 if __name__ == "__main__":
     main()
